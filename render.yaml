@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: efootball-v228-web
+    env: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: 10000
+      - key: NODE_ENV
+        value: production
+      - key: COOKIE_SECURE
+        value: true
+      - key: DATA_DIR
+        value: /data
+    disk:
+      name: efootball-data
+      mountPath: /data
+      sizeGB: 1

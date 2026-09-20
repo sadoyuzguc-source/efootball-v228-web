@@ -1,0 +1,37 @@
+{
+  "name": "efootball-v228-web",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "node server/index.mjs",
+    "start": "node server/index.mjs --production",
+    "build": "vite build",
+    "inspect": "node scripts/inspect-workbook.mjs",
+    "import": "node scripts/import-workbook.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "test:e2e": "playwright test",
+    "open": "node scripts/start.mjs",
+    "audit:import": "node scripts/audit-import.mjs"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "exceljs": "^4.4.0",
+    "express": "^5.1.0",
+    "lucide-react": "^0.468.0",
+    "multer": "^2.0.2",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "cfb": "^1.2.2",
+    "jszip": "^3.10.1",
+    "prettier": "^3.9.8",
+    "vite": "^7.0.0"
+  }
+}

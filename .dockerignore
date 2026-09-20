@@ -2,7 +2,6 @@ node_modules
 dist
 data
 analysis
-public/themes
 public/uploads
 test-results
 playwright-report

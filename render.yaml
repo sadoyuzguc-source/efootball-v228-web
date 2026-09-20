@@ -14,9 +14,5 @@ services:
         value: production
       - key: COOKIE_SECURE
         value: true
-      - key: DATA_DIR
-        value: /data
-    disk:
-      name: efootball-data
-      mountPath: /data
-      sizeGB: 1
+      # Free planda disk yok - veriler deploy/restart'te silinir, yedekle geri yuklenir
+      # Kalici disk icin Render Starter ($7/ay) gerekir - o zaman DATA_DIR=/data + disk ekle

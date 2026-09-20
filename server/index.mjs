@@ -5,10 +5,18 @@ import fs from "node:fs";
 import path from "node:path";
 import bcrypt from "bcryptjs";
 import ExcelJS from "exceljs";
-import { db, loadState, mutate, dataDir } from "./store.mjs";
+import { db, loadState, mutate, dataDir, saveInitial } from "./store.mjs";
 import { actor, execute, matchSquads } from "./domain.mjs";
-import { permitted, normalize, PERMISSIONS } from "../shared/rules.mjs";
+import { permitted, normalize, PERMISSIONS, canManageLeague } from "../shared/rules.mjs";
 import { searchPesdata } from "./pesdata.mjs";
+import {assertLeagueAccess} from './access.mjs';
+import {migrateAccessData,ACCESS_VERSION} from './migrations.mjs';
+
+const beforeMigration=loadState();
+if(beforeMigration && (beforeMigration.meta?.accessVersion||0)<ACCESS_VERSION){
+  fs.writeFileSync(path.join(dataDir,`access-before-${Date.now()}.json`),JSON.stringify({format:'efootball-v228-web',version:1,state:beforeMigration}));
+  mutate(state=>migrateAccessData(state),beforeMigration.revision);
+}
 
 const app = express(),
   port = Number(process.env.PORT || 3228),
@@ -126,6 +134,10 @@ app.post("/api/logout", (req, res) => {
   res.clearCookie("ef228", { path: "/" });
   res.json({ ok: true });
 });
+app.post('/api/guest',(req,res)=>{
+  const s=loadState();if(!s)return res.status(503).json({error:'Uygulama verileri henüz hazır değil.'});
+  issueSession(res,0);res.json({user:actor(s,0)});
+});
 app.get("/api/bootstrap", requireUser, (req, res) => {
   const s = loadState(),
     u = actor(s, req.user.id);
@@ -151,13 +163,8 @@ app.get("/api/bootstrap", requireUser, (req, res) => {
       ? catalog
       : catalog.filter((c) => squadIds.has(c.id)),
     catalogCount: catalog.length,
-    news: permitted(u, "HABERLER.DUZENLE")
-      ? news
-      : news.filter((n) => n.active),
-    streams:
-      permitted(u, "HABERLER.DUZENLE") || permitted(u, "YAYIN.DUZENLE")
-        ? streams
-        : streams.filter((n) => n.active),
+    news: news.filter(n=>n.active||(permitted(u,'HABERLER.DUZENLE')&&canManageLeague(u,n.leagueId))),
+    streams: streams.filter(n=>n.active||((permitted(u,'HABERLER.DUZENLE')||permitted(u,'YAYIN.DUZENLE'))&&canManageLeague(u,n.leagueId))),
   });
 });
 const searchCards = new Map();
@@ -180,14 +187,12 @@ app.get("/api/catalog/search", requireUser, async (req, res) => {
     for (const card of result.players) searchCards.set(card.pesdataId, card);
     res.json(result);
   } catch (e) {
-    res
-      .status(502)
-      .json({
-        error:
-          e.name === "TimeoutError"
-            ? "PESDATA bağlantısı zaman aşımına uğradı. Yerel katalog kullanılabilir."
-            : e.message,
-      });
+    res.status(502).json({
+      error:
+        e.name === "TimeoutError"
+          ? "PESDATA bağlantısı zaman aşımına uğradı. Yerel katalog kullanılabilir."
+          : e.message,
+    });
   }
 });
 app.get("/api/matches/:id/squad", requireUser, (req, res) => {
@@ -196,6 +201,7 @@ app.get("/api/matches/:id/squad", requireUser, (req, res) => {
   const s = loadState(),
     m = s.matches.find((x) => x.id === Number(req.params.id));
   if (!m) return res.status(404).json({ error: "Maç bulunamadı." });
+  assertLeagueAccess(req.user,m.leagueId);
   res.json(matchSquads(s, m));
 });
 app.post("/api/action", requireUser, (req, res) => {
@@ -265,12 +271,31 @@ app.get("/api/backup", requireUser, requireAdmin, (req, res) => {
   );
   res.json({ format: "efootball-v228-web", version: 1, state: loadState() });
 });
+// Ilk kurulum icin yetkisiz restore - sadece DB bos iken calisir (Render free icin)
+app.post("/api/init", (req, res) => {
+  if (loadState())
+    return res.status(400).json({ error: "Veritabanı zaten dolu. Ayarlar > Yedekten Geri Yükle kullanın." });
+  const b = req.body;
+  if (b.format !== "efootball-v228-web" || b.version !== 1 || !b.state)
+    return res.status(400).json({ error: "Geçerli bir web yedeği seçin." });
+  const restored = b.state;
+  migrateAccessData(restored);
+  if (!restored.users?.some((u) => u.role === "Admin" && u.active && /^\$2/.test(u.passwordHash)))
+    return res.status(400).json({ error: "Yedekte aktif yönetici hesabı yok." });
+  try {
+    saveInitial(restored);
+    res.json({ message: "İlk yedek yüklendi. Giriş yapabilirsiniz." });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
 app.post("/api/restore", requireUser, requireAdmin, (req, res) => {
   const b = req.body;
   if (b.format !== "efootball-v228-web" || b.version !== 1 || !b.state)
     return res.status(400).json({ error: "Geçerli bir web yedeği seçin." });
   const current = loadState(),
     restored = b.state;
+  migrateAccessData(restored);
   for (const [key, v] of Object.entries(current)) {
     if (Array.isArray(v) && !Array.isArray(restored[key]))
       return res.status(400).json({ error: `Yedek eksik: ${key}` });

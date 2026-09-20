@@ -1089,19 +1089,15 @@ export function Teams() {
           <section className="teams-museum" aria-label="Takım müzesi">
             <h2>TAKIM MÜZESİ</h2>
             <div className="teams-museum-grid">
-              {trophies.map(([key, label], i) => {
-                const count = museum?.[key] || 0;
-                return (
+              {trophies.map(([key, label], i) => (
                 <div
-                  className={`teams-museum-cell ${i < 2 ? "major" : ""} ${count ? "has" : ""}`}
+                  className={`teams-museum-cell ${i < 2 ? "major" : ""}`}
                   key={key}
                 >
-                  <Trophy size={i < 2 ? 26 : 20} className={count ? "gold" : ""} />
                   <span>{label}</span>
-                  <strong>{count}</strong>
+                  <strong>{museum?.[key] || 0}</strong>
                 </div>
-                );
-              })}
+              ))}
             </div>
           </section>
           <footer className="teams-footer">

@@ -3557,37 +3557,23 @@ body:has(.teams-page) main {
 }
 .teams-museum-cell {
   grid-column: span 2;
-  min-height: 92px;
+  min-height: 88px;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: space-between;
   align-items: center;
-  gap: 6px;
-  padding: 10px 6px;
-  background: linear-gradient(180deg, #0f2a44 0%, #091f33 100%);
+  padding: 8px 5px;
+  background: #091f33;
   border: 1px solid #2785ef;
-  border-radius: 8px;
   text-align: center;
-}
-.teams-museum-cell.has {
-  border-color: #ffdc0080;
-  background: linear-gradient(180deg, #1a3a5c 0%, #0f2a44 100%);
-}
-.teams-museum-cell svg {
-  color: #5c7892;
-}
-.teams-museum-cell svg.gold {
-  color: #ffdc00;
-  filter: drop-shadow(0 0 6px #ffdc0060);
 }
 .teams-museum-cell.major {
   grid-column: span 3;
 }
 .teams-museum-cell span {
   color: #6be1ff;
-  font-size: clamp(8px, 0.7vw, 12px);
+  font-size: clamp(9px, 0.74vw, 14px);
   line-height: 1.2;
-  font-weight: 600;
 }
 .teams-museum-cell strong {
   color: #ffdc00;

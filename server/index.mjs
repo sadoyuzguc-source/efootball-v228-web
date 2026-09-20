@@ -265,6 +265,15 @@ app.get("/api/backup", requireUser, requireAdmin, (req, res) => {
   );
   res.json({ format: "efootball-v228-web", version: 1, state: loadState() });
 });
+// Ilk kurulum - DB bosken yetkisiz yukleme (Render free icin)
+app.post("/api/init", (req, res) => {
+  if (loadState()) return res.status(400).json({ error: "Veritabani zaten dolu. Ayarlar > Yedekten Geri Yukle kullanin." });
+  const b = req.body;
+  if (b.format !== "efootball-v228-web" || b.version !== 1 || !b.state) return res.status(400).json({ error: "Gecerli bir web yedegi secin." });
+  const restored = b.state;
+  if (!restored.users?.some((u) => u.role === "Admin" && u.active && /^\$2/.test(u.passwordHash))) return res.status(400).json({ error: "Yedekte aktif yonetici hesabi yok." });
+  try { saveInitial(restored); res.json({ message: "Ilk yedek yuklendi. Giris yapabilirsiniz." }); } catch (e) { res.status(400).json({ error: e.message }); }
+});
 app.post("/api/restore", requireUser, requireAdmin, (req, res) => {
   const b = req.body;
   if (b.format !== "efootball-v228-web" || b.version !== 1 || !b.state)

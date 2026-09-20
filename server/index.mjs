@@ -7,16 +7,8 @@ import bcrypt from "bcryptjs";
 import ExcelJS from "exceljs";
 import { db, loadState, mutate, dataDir, saveInitial } from "./store.mjs";
 import { actor, execute, matchSquads } from "./domain.mjs";
-import { permitted, normalize, PERMISSIONS, canManageLeague } from "../shared/rules.mjs";
+import { permitted, normalize, PERMISSIONS } from "../shared/rules.mjs";
 import { searchPesdata } from "./pesdata.mjs";
-import {assertLeagueAccess} from './access.mjs';
-import {migrateAccessData,ACCESS_VERSION} from './migrations.mjs';
-
-const beforeMigration=loadState();
-if(beforeMigration && (beforeMigration.meta?.accessVersion||0)<ACCESS_VERSION){
-  fs.writeFileSync(path.join(dataDir,`access-before-${Date.now()}.json`),JSON.stringify({format:'efootball-v228-web',version:1,state:beforeMigration}));
-  mutate(state=>migrateAccessData(state),beforeMigration.revision);
-}
 
 const app = express(),
   port = Number(process.env.PORT || 3228),
@@ -33,7 +25,7 @@ app.use((req, res, next) => {
     req.headers.origin &&
     new URL(req.headers.origin).host !== req.headers.host
   )
-    return res.status(403).json({ error: "GeÃ§ersiz istek kaynaÄŸÄ±." });
+    return res.status(403).json({ error: "Ge+ðersiz istek kayna¦þ¦-." });
   next();
 });
 const hash = (t) => crypto.createHash("sha256").update(t).digest("hex");
@@ -59,13 +51,13 @@ app.use("/api", (req, res, next) => {
 const requireUser = (req, res, next) =>
   req.user
     ? next()
-    : res.status(401).json({ error: "Oturum aÃ§manÄ±z gerekiyor." });
+    : res.status(401).json({ error: "Oturum a+ðman¦-z gerekiyor." });
 const requireAdmin = (req, res, next) =>
   normalize(req.user?.role) === "admin"
     ? next()
     : res
         .status(403)
-        .json({ error: "Bu iÅŸlem yalnÄ±zca Admin tarafÄ±ndan yapÄ±labilir." });
+        .json({ error: "Bu i+þlem yaln¦-zca Admin taraf¦-ndan yap¦-labilir." });
 const issueSession = (res, id) => {
   const token = crypto.randomBytes(32).toString("base64url");
   db.prepare("DELETE FROM sessions WHERE expires<?").run(Date.now());
@@ -103,12 +95,12 @@ app.post("/api/login", (req, res) => {
   }
   if (a.count >= 15)
     return res.status(429).json({
-      error: "Ã‡ok fazla baÅŸarÄ±sÄ±z giriÅŸ. 15 dakika sonra tekrar deneyin.",
+      error: "+çok fazla ba+þar¦-s¦-z giri+þ. 15 dakika sonra tekrar deneyin.",
     });
   const s = loadState();
   if (!s)
     return res.status(503).json({
-      error: "Ã–nce npm run import komutuyla Excel dosyasÄ±nÄ± aktarÄ±n.",
+      error: "+ûnce npm run import komutuyla Excel dosyas¦-n¦- aktar¦-n.",
     });
   const user = s.users.find(
     (u) => normalize(u.username) === normalize(req.body.username) && u.active,
@@ -121,7 +113,7 @@ app.post("/api/login", (req, res) => {
     attempts.set(key, a);
     return res.status(401).json({
       error:
-        "KullanÄ±cÄ± adÄ± veya ÅŸifre yanlÄ±ÅŸ; hesabÄ±nÄ±zÄ±n aktif olduÄŸunu kontrol edin.",
+        "Kullan¦-c¦- ad¦- veya +þifre yanl¦-+þ; hesab¦-n¦-z¦-n aktif oldu¦þunu kontrol edin.",
     });
   }
   attempts.delete(key);
@@ -133,10 +125,6 @@ app.post("/api/logout", (req, res) => {
   if (token) db.prepare("DELETE FROM sessions WHERE token=?").run(hash(token));
   res.clearCookie("ef228", { path: "/" });
   res.json({ ok: true });
-});
-app.post('/api/guest',(req,res)=>{
-  const s=loadState();if(!s)return res.status(503).json({error:'Uygulama verileri henÃ¼z hazÄ±r deÄŸil.'});
-  issueSession(res,0);res.json({user:actor(s,0)});
 });
 app.get("/api/bootstrap", requireUser, (req, res) => {
   const s = loadState(),
@@ -163,8 +151,13 @@ app.get("/api/bootstrap", requireUser, (req, res) => {
       ? catalog
       : catalog.filter((c) => squadIds.has(c.id)),
     catalogCount: catalog.length,
-    news: news.filter(n=>n.active||(permitted(u,'HABERLER.DUZENLE')&&canManageLeague(u,n.leagueId))),
-    streams: streams.filter(n=>n.active||((permitted(u,'HABERLER.DUZENLE')||permitted(u,'YAYIN.DUZENLE'))&&canManageLeague(u,n.leagueId))),
+    news: permitted(u, "HABERLER.DUZENLE")
+      ? news
+      : news.filter((n) => n.active),
+    streams:
+      permitted(u, "HABERLER.DUZENLE") || permitted(u, "YAYIN.DUZENLE")
+        ? streams
+        : streams.filter((n) => n.active),
   });
 });
 const searchCards = new Map();
@@ -174,7 +167,7 @@ const nationalityLookup = fs.existsSync(countryFile)
   : {};
 app.get("/api/catalog/search", requireUser, async (req, res) => {
   if (!permitted(req.user, "KATALOG.DUZENLE"))
-    return res.status(403).json({ error: "Katalog dÃ¼zenleme yetkiniz yok." });
+    return res.status(403).json({ error: "Katalog d+-zenleme yetkiniz yok." });
   const q = String(req.query.q || "").trim(),
     start = Math.max(0, Number(req.query.start) || 0);
   if (q.length < 2 || q.length > 100)
@@ -187,21 +180,22 @@ app.get("/api/catalog/search", requireUser, async (req, res) => {
     for (const card of result.players) searchCards.set(card.pesdataId, card);
     res.json(result);
   } catch (e) {
-    res.status(502).json({
-      error:
-        e.name === "TimeoutError"
-          ? "PESDATA baÄŸlantÄ±sÄ± zaman aÅŸÄ±mÄ±na uÄŸradÄ±. Yerel katalog kullanÄ±labilir."
-          : e.message,
-    });
+    res
+      .status(502)
+      .json({
+        error:
+          e.name === "TimeoutError"
+            ? "PESDATA ba¦þlant¦-s¦- zaman a+þ¦-m¦-na u¦þrad¦-. Yerel katalog kullan¦-labilir."
+            : e.message,
+      });
   }
 });
 app.get("/api/matches/:id/squad", requireUser, (req, res) => {
   if (!permitted(req.user, "AYARLAR.SKOR"))
-    return res.status(403).json({ error: "Skor giriÅŸ yetkiniz yok." });
+    return res.status(403).json({ error: "Skor giri+þ yetkiniz yok." });
   const s = loadState(),
     m = s.matches.find((x) => x.id === Number(req.params.id));
-  if (!m) return res.status(404).json({ error: "MaÃ§ bulunamadÄ±." });
-  assertLeagueAccess(req.user,m.leagueId);
+  if (!m) return res.status(404).json({ error: "Ma+ð bulunamad¦-." });
   res.json(matchSquads(s, m));
 });
 app.post("/api/action", requireUser, (req, res) => {
@@ -212,7 +206,7 @@ app.post("/api/action", requireUser, (req, res) => {
     Array.isArray(payload) ||
     typeof payload !== "object"
   )
-    return res.status(400).json({ error: "GeÃ§ersiz iÅŸlem." });
+    return res.status(400).json({ error: "Ge+ðersiz i+þlem." });
   if (op === "catalog.import") {
     payload.cards = (Array.isArray(payload.ids) ? payload.ids : []).map((id) =>
       searchCards.get(String(id)),
@@ -220,7 +214,7 @@ app.post("/api/action", requireUser, (req, res) => {
     if (payload.cards.some((c) => !c))
       return res
         .status(400)
-        .json({ error: "Arama sonuÃ§larÄ±nÄ± yenileyip tekrar seÃ§in." });
+        .json({ error: "Arama sonu+ðlar¦-n¦- yenileyip tekrar se+ðin." });
   }
   const result = mutate(
     (s) => execute(s, actor(s, req.user.id), op, payload),
@@ -242,7 +236,7 @@ app.post("/api/upload", requireUser, upload.single("image"), (req, res) => {
       permitted(req.user, c),
     )
   )
-    return res.status(403).json({ error: "GÃ¶rsel yÃ¼kleme yetkiniz yok." });
+    return res.status(403).json({ error: "G+Ârsel y+-kleme yetkiniz yok." });
   const b = req.file?.buffer;
   let ext = "";
   if (b?.subarray(0, 3).equals(Buffer.from([255, 216, 255]))) ext = ".jpg";
@@ -258,7 +252,7 @@ app.post("/api/upload", requireUser, upload.single("image"), (req, res) => {
   if (!ext)
     return res
       .status(400)
-      .json({ error: "JPG, PNG veya WebP gÃ¶rsel seÃ§in (en fazla 8 MB)." });
+      .json({ error: "JPG, PNG veya WebP g+Ârsel se+ðin (en fazla 8 MB)." });
   const dir = path.resolve("public/uploads");
   fs.mkdirSync(dir, { recursive: true });
   const name = crypto.randomBytes(16).toString("hex") + ext;
@@ -271,31 +265,12 @@ app.get("/api/backup", requireUser, requireAdmin, (req, res) => {
   );
   res.json({ format: "efootball-v228-web", version: 1, state: loadState() });
 });
-// Ilk kurulum icin yetkisiz restore - sadece DB bos iken calisir (Render free icin)
-app.post("/api/init", (req, res) => {
-  if (loadState())
-    return res.status(400).json({ error: "VeritabanÄ± zaten dolu. Ayarlar > Yedekten Geri YÃ¼kle kullanÄ±n." });
-  const b = req.body;
-  if (b.format !== "efootball-v228-web" || b.version !== 1 || !b.state)
-    return res.status(400).json({ error: "GeÃ§erli bir web yedeÄŸi seÃ§in." });
-  const restored = b.state;
-  migrateAccessData(restored);
-  if (!restored.users?.some((u) => u.role === "Admin" && u.active && /^\$2/.test(u.passwordHash)))
-    return res.status(400).json({ error: "Yedekte aktif yÃ¶netici hesabÄ± yok." });
-  try {
-    saveInitial(restored);
-    res.json({ message: "Ä°lk yedek yÃ¼klendi. GiriÅŸ yapabilirsiniz." });
-  } catch (e) {
-    res.status(400).json({ error: e.message });
-  }
-});
 app.post("/api/restore", requireUser, requireAdmin, (req, res) => {
   const b = req.body;
   if (b.format !== "efootball-v228-web" || b.version !== 1 || !b.state)
-    return res.status(400).json({ error: "GeÃ§erli bir web yedeÄŸi seÃ§in." });
+    return res.status(400).json({ error: "Ge+ðerli bir web yede¦þi se+ðin." });
   const current = loadState(),
     restored = b.state;
-  migrateAccessData(restored);
   for (const [key, v] of Object.entries(current)) {
     if (Array.isArray(v) && !Array.isArray(restored[key]))
       return res.status(400).json({ error: `Yedek eksik: ${key}` });
@@ -307,7 +282,7 @@ app.post("/api/restore", requireUser, requireAdmin, (req, res) => {
   )
     return res
       .status(400)
-      .json({ error: "Yedekte aktif yÃ¶netici hesabÄ± yok." });
+      .json({ error: "Yedekte aktif y+Ânetici hesab¦- yok." });
   fs.writeFileSync(
     path.join(dataDir, `restore-before-${Date.now()}.json`),
     JSON.stringify({
@@ -322,11 +297,11 @@ app.post("/api/restore", requireUser, requireAdmin, (req, res) => {
   }, current.revision);
   db.prepare("DELETE FROM sessions").run();
   res.clearCookie("ef228", { path: "/" });
-  res.json({ message: "Yedek geri yÃ¼klendi. Yeniden giriÅŸ yapÄ±n." });
+  res.json({ message: "Yedek geri y+-klendi. Yeniden giri+þ yap¦-n." });
 });
 app.get("/api/export", requireUser, (req, res, next) => {
   if (!permitted(req.user, "AYARLAR.LIG"))
-    return res.status(403).json({ error: "DÄ±ÅŸa aktarma yetkiniz yok." });
+    return res.status(403).json({ error: "D¦-+þa aktarma yetkiniz yok." });
   const s = loadState(),
     wb = new ExcelJS.Workbook();
   wb.creator = "eFootball v228 Web";
@@ -524,7 +499,7 @@ app.get("/api/export", requireUser, (req, res, next) => {
             typeof r[k] === "boolean"
               ? r[k]
                 ? "Evet"
-                : "HayÄ±r"
+                : "Hay¦-r"
               : (r[k] ?? ""),
           ]),
         ),
@@ -545,15 +520,15 @@ app.get("/api/export", requireUser, (req, res, next) => {
     .catch(next);
 });
 app.use("/api", (req, res) =>
-  res.status(404).json({ error: "API adresi bulunamadÄ±." }),
+  res.status(404).json({ error: "API adresi bulunamad¦-." }),
 );
 app.use((err, req, res, next) => {
   console.error(err.message);
   res.status(err.status || 400).json({
     error:
       err.code === "LIMIT_FILE_SIZE"
-        ? "Dosya 8 MB sÄ±nÄ±rÄ±nÄ± aÅŸÄ±yor."
-        : err.message || "Ä°ÅŸlem tamamlanamadÄ±.",
+        ? "Dosya 8 MB s¦-n¦-r¦-n¦- a+þ¦-yor."
+        : err.message || "¦-+þlem tamamlanamad¦-.",
   });
 });
 app.use("/uploads", express.static(path.resolve("public/uploads")));
@@ -573,6 +548,6 @@ if (production) {
 }
 app.listen(port, process.env.HOST || "127.0.0.1", () =>
   console.log(
-    `eFootball v228 baÄŸÄ±msÄ±z web uygulamasÄ±: http://localhost:${port}`,
+    `eFootball v228 ba¦þ¦-ms¦-z web uygulamas¦-: http://localhost:${port}`,
   ),
 );

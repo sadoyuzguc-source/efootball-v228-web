@@ -10,6 +10,23 @@ import { actor, execute, matchSquads } from "./domain.mjs";
 import { permitted, normalize, PERMISSIONS } from "../shared/rules.mjs";
 import { searchPesdata } from "./pesdata.mjs";
 
+// Render free icin otomatik seed - DB bossa imajdaki seed.json'dan yukle
+if (!loadState()) {
+  try {
+    const seedCandidates = [path.resolve("seed.json"), path.join(dataDir, "seed.json"), path.resolve(dataDir, "../seed.json")];
+    for (const sp of seedCandidates) {
+      if (fs.existsSync(sp)) {
+        const seed = JSON.parse(fs.readFileSync(sp, "utf8"));
+        if (seed.format === "efootball-v228-web" && seed.version === 1 && seed.state) {
+          saveInitial(seed.state);
+          console.log(`Seed yuklendi: ${sp} (${seed.state.users?.length || 0} kullanici)`);
+          break;
+        }
+      }
+    }
+  } catch (e) { console.error("Seed yuklenemedi:", e.message); }
+}
+
 const app = express(),
   port = Number(process.env.PORT || 3228),
   production = process.argv.includes("--production");

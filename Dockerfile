@@ -29,3 +29,5 @@ RUN mkdir -p /data /app/public/uploads /app/public/themes
 
 EXPOSE 3228
 CMD ["node", "server/index.mjs", "--production"]
+
+# bust cache 234ce2b-2

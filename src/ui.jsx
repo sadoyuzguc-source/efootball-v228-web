@@ -15,7 +15,7 @@ import {
   AlertCircle,
   Upload,
 } from "lucide-react";
-import { turkeyToday } from "../shared/rules.mjs";
+import { turkeyToday, isActiveOrganization } from "../shared/rules.mjs";
 export const AppContext = createContext(null);
 export const useApp = () => useContext(AppContext);
 export function useBroadcastToday() {
@@ -146,22 +146,40 @@ export function LeagueSelect({
   all = false,
   allLabel = "TÜMÜ",
   cups = true,
-  active = false,
+  active = true,
+  management = false,
 }) {
-  const { data } = useApp();
+  const { data, canManageLeague } = useApp();
   const options = data.leagues
     .filter(
-      (l) => (cups || l.type === "Lig") && (!active || l.status === "Aktif"),
+      (l) =>
+        (cups || l.type === "Lig") &&
+        (!active || isActiveOrganization(l)) &&
+        (!management || canManageLeague(l.id)),
     )
     .map((l) => ({
       value: l.id,
       label: `${l.name} | ${l.season}${l.status === "Pasif" ? " (Pasif)" : ""}`,
     }));
   if (all) options.unshift({ value: 0, label: allLabel });
+  const selected = options.some((option) => option.value === Number(value))
+    ? Number(value)
+    : (options[0]?.value ?? 0);
+  useEffect(() => {
+    if (Number(value) !== selected) onChange(selected);
+  }, [value, selected, onChange]);
   return (
     <Select
       aria-label="Lig / kupa seçimi"
-      value={value}
+      value={options.length ? selected : ""}
+      disabled={!options.length}
+      placeholder={
+        !options.length
+          ? active
+            ? "Aktif lig/kupa bulunmuyor"
+            : "Lig/kupa bulunmuyor"
+          : undefined
+      }
       onChange={(v) => onChange(Number(v))}
       options={options}
     />

@@ -1,0 +1,205 @@
+.metric.metric {
+  grid-template-columns: 56px auto;
+  align-items: center;
+  gap: 12px 14px;
+  padding: 3px 10px;
+}
+.badge {
+  grid-column: 1;
+  grid-row: 1;
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 17px;
+  border: 1px solid color-mix(in srgb, var(--metric-accent) 56%, #29445b);
+  background:
+    radial-gradient(
+      ellipse at 20% 0,
+      color-mix(in srgb, var(--metric-accent) 30%, transparent),
+      transparent 70%
+    ),
+    linear-gradient(145deg, #21475f, #0a2238 80%);
+  box-shadow:
+    inset 0 1px 1px #e4f9ff50,
+    inset 0 -2px 5px #0007,
+    0 7px 12px #0005,
+    0 0 17px color-mix(in srgb, var(--metric-accent) 13%, transparent);
+  transition:
+    transform 0.25s ease,
+    border-color 0.25s ease,
+    box-shadow 0.25s ease;
+}
+.badge::before {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border: 1px solid #dbf5ff14;
+  border-radius: 12px;
+  pointer-events: none;
+}
+.rim {
+  position: absolute;
+  inset: -5px;
+  z-index: -1;
+  border: 1px solid color-mix(in srgb, var(--metric-accent) 18%, transparent);
+  border-radius: 22px;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--metric-accent) 6%, transparent),
+    transparent 65%
+  );
+}
+.badge .glyph {
+  width: 30px;
+  height: 30px;
+  grid-column: auto;
+  grid-row: auto;
+  color: var(--metric-accent);
+  fill: color-mix(in srgb, var(--metric-accent) 8%, transparent);
+  filter: drop-shadow(0 2px 1px #0006)
+    drop-shadow(
+      0 0 6px color-mix(in srgb, var(--metric-accent) 38%, transparent)
+    );
+}
+.spark {
+  position: absolute;
+  right: 5px;
+  top: 5px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #e9faff;
+  box-shadow:
+    0 0 5px var(--metric-accent),
+    0 0 11px var(--metric-accent);
+}
+.metric.metric > strong {
+  font-size: 38px;
+  text-shadow: 0 0 20px
+    color-mix(in srgb, var(--metric-accent) 16%, transparent);
+}
+.metric.metric > .label {
+  grid-column: 1/-1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #bad0e4;
+  font-size: 9px;
+  letter-spacing: 0.11em;
+}
+.label::before {
+  content: "";
+  width: 4px;
+  height: 4px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--metric-accent);
+  opacity: 0.75;
+  box-shadow: 0 0 6px color-mix(in srgb, var(--metric-accent) 40%, transparent);
+}
+@media (hover: hover) {
+  .metric:hover .badge {
+    transform: translateY(-3px) rotate(-4deg);
+    border-color: var(--metric-accent);
+    box-shadow:
+      inset 0 1px 1px #e4f9ff70,
+      inset 0 -2px 5px #0005,
+      0 9px 18px #0006,
+      0 0 24px color-mix(in srgb, var(--metric-accent) 25%, transparent);
+  }
+}
+@media (min-width: 1650px) {
+  .metric.metric {
+    grid-template-columns: 62px auto;
+    gap: 12px 16px;
+  }
+  .badge {
+    width: 62px;
+    height: 62px;
+    border-radius: 19px;
+  }
+  .badge::before {
+    border-radius: 14px;
+  }
+  .rim {
+    border-radius: 24px;
+  }
+  .badge .glyph {
+    width: 34px;
+    height: 34px;
+  }
+  .metric.metric > strong {
+    font-size: 46px;
+  }
+  .metric.metric > .label {
+    font-size: 10px;
+  }
+}
+@media (max-width: 1200px) {
+  .metric.metric {
+    grid-template-columns: 44px auto;
+    gap: 11px 9px;
+    padding: 3px 8px;
+  }
+  .badge {
+    width: 44px;
+    height: 44px;
+    border-radius: 13px;
+  }
+  .badge::before {
+    border-radius: 9px;
+  }
+  .rim {
+    inset: -4px;
+    border-radius: 17px;
+  }
+  .badge .glyph {
+    width: 25px;
+    height: 25px;
+  }
+  .metric.metric > strong {
+    font-size: 32px;
+  }
+  .metric.metric > .label {
+    font-size: 7px;
+    letter-spacing: 0.06em;
+  }
+}
+@media (max-width: 700px) {
+  .metric.metric {
+    grid-template-columns: 40px auto;
+    gap: 10px 9px;
+    padding: 3px 6px;
+  }
+  .badge {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+  }
+  .badge .glyph {
+    width: 23px;
+    height: 23px;
+  }
+  .metric.metric > strong {
+    font-size: 30px;
+  }
+  .metric.metric > .label {
+    font-size: 8px;
+    gap: 4px;
+  }
+  .rim {
+    border-radius: 16px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .badge {
+    transition: none;
+  }
+  .metric:hover .badge {
+    transform: none;
+  }
+}

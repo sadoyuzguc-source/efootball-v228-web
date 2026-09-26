@@ -10,7 +10,9 @@ import {
   Users,
   Trophy,
   CalendarDays,
-  Check,
+  BadgeCheck,
+  Medal,
+  UsersRound,
   Search,
   Trash2,
   Pencil,
@@ -48,12 +50,15 @@ import {
   isPastBroadcast,
   UEFA_COMPETITIONS,
   cupCompetition,
+  fixtureParticipant,
+  isActiveOrganization,
 } from "../shared/rules.mjs";
-import { CupCreate } from "./management";
 import OnlineCatalog from "./OnlineCatalog";
+import TeamMuseum from "./TeamMuseum";
+import TeamManagementDialog from "./TeamManagementDialog";
+import DashboardMetric from "./DashboardMetric";
 const activeLeague = (data) =>
-  data.leagues.find((l) => l.type === "Lig" && l.status === "Aktif")?.id ||
-  data.leagues.find((l) => l.type === "Lig")?.id ||
+  data.leagues.find((l) => l.type === "Lig" && isActiveOrganization(l))?.id ||
   0;
 
 function NewsSlideContent({ item, outgoing = false }) {
@@ -162,15 +167,26 @@ export function Dashboard() {
     .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
   const metrics = [
     [
-      Users,
+      UsersRound,
       data.players.filter((p) => p.active && (!league || p.leagueId === league))
         .length,
       "OYUNCU",
+      "#6ce1f5",
     ],
-    [Shield, leagues.filter((l) => l.type === "Lig").length, "AKTİF LİG"],
-    [Trophy, leagues.filter((l) => l.type === "Kupa").length, "AKTİF KUPA"],
-    [CalendarDays, matches.length, "TOPLAM MAÇ"],
-    [Check, matches.filter(played).length, "OYNANAN MAÇ"],
+    [
+      Medal,
+      leagues.filter((l) => l.type === "Lig").length,
+      "AKTİF LİG",
+      "#95baff",
+    ],
+    [
+      Trophy,
+      leagues.filter((l) => l.type === "Kupa").length,
+      "AKTİF KUPA",
+      "#f7d28a",
+    ],
+    [CalendarDays, matches.length, "TOPLAM MAÇ", "#bca6ff"],
+    [BadgeCheck, matches.filter(played).length, "OYNANAN MAÇ", "#7be6b6"],
   ];
   return (
     <div className="dashboard">
@@ -338,12 +354,14 @@ export function Dashboard() {
         </Panel>
       </div>
       <div className="dashboard-metrics">
-        {metrics.map(([Icon, count, label]) => (
-          <div className="metric" key={label}>
-            <Icon size={23} />
-            <strong>{number(count)}</strong>
-            <span>{label}</span>
-          </div>
+        {metrics.map(([Icon, count, label, color]) => (
+          <DashboardMetric
+            key={label}
+            Icon={Icon}
+            count={count}
+            label={label}
+            color={color}
+          />
         ))}
         <div className="welcome">
           <strong>LİGİNE HOŞ GELDİN!</strong>
@@ -586,18 +604,31 @@ function StatsTable({ rows }) {
   );
 }
 export function Cups() {
-  const { data, can, act } = useApp();
-  const [id, setId] = useState(data.cups[0]?.id || 0),
-    [create, setCreate] = useState(false),
+  const { data } = useApp();
+  const [id, setId] = useState(0),
     [tab, setTab] = useState("bracket"),
-    [edit, setEdit] = useState(false),
-    [remove, setRemove] = useState(false);
-  const cup = data.cups.find((c) => c.id === id),
-    league = data.leagues.find((l) => l.id === id),
-    parts = data.participants.filter((p) => p.cupId === id),
-    matches = data.matches.filter((m) => m.leagueId === id);
-  const competition=cupCompetition(cup,league);
-  const championship=UEFA_COMPETITIONS[competition];
+    [view, setView] = useState("auto");
+  const completed = (c) => normalize(c.stage).trim() === "tamamlandi";
+  const visibleCups = data.cups.filter((c) =>
+    isActiveOrganization(data.leagues.find((l) => l.id === c.id)),
+  );
+  const ongoing = visibleCups
+    .filter((c) => !completed(c))
+    .slice()
+    .sort((a, b) => b.id - a.id);
+  const archived = visibleCups
+    .filter(completed)
+    .slice()
+    .sort((a, b) => b.id - a.id);
+  const selectedView =
+    view === "auto" ? (ongoing.length ? "current" : "archive") : view;
+  const choices = selectedView === "archive" ? archived : ongoing;
+  const cup = choices.find((c) => c.id === id) || choices[0],
+    league = data.leagues.find((l) => l.id === cup?.id),
+    parts = data.participants.filter((p) => p.cupId === cup?.id),
+    matches = data.matches.filter((m) => m.leagueId === cup?.id);
+  const competition = cupCompetition(cup, league);
+  const championship = UEFA_COMPETITIONS[competition];
   const stages = [
     { key: "SON 16", title: "SON 16", slots: 8 },
     { key: "CEYREK FINAL", title: "ÇEYREK FİNAL", slots: 4 },
@@ -611,54 +642,92 @@ export function Cups() {
     return p ? `${p.name} · ${p.team}` : name;
   };
   return (
-    <div className={`page cups-page cup-theme-${competition}`} style={championship?{'--competition-accent':championship.color,'--competition-background':`url("${championship.theme}")`}:undefined}>
+    <div
+      className={`page cups-page cup-theme-${competition}`}
+      style={
+        championship
+          ? {
+              "--competition-accent": championship.color,
+              "--competition-background": `url("${championship.theme}")`,
+            }
+          : undefined
+      }
+    >
       <PageHead
         title="KUPALAR"
         subtitle="Kura havuzu, grup aşaması ve eleme ağacı"
-      >
-        {can("AYARLAR.KUPA") && (
-          <button className="primary" onClick={() => setCreate(true)}>
-            <Plus size={17} />
-            KUPA OLUŞTUR
-          </button>
-        )}
-      </PageHead>
-      {championship&&<div className="championship-banner"><Trophy size={30}/><div><span>ULUSAL KUPA · GRUPLU + ELEME</span><h2>{championship.name}</h2></div><Badge>{championship.start}–{championship.end}. SIRALAR</Badge></div>}
+      />
+      <div className="tabs cup-status-tabs" aria-label="Kupa durumu">
+        <button
+          className={selectedView === "current" ? "active" : ""}
+          aria-pressed={selectedView === "current"}
+          onClick={() => {
+            setView("current");
+            setId(0);
+            setTab("bracket");
+          }}
+        >
+          DEVAM EDEN KUPALAR ({ongoing.length})
+        </button>
+        <button
+          className={selectedView === "archive" ? "active" : ""}
+          aria-pressed={selectedView === "archive"}
+          onClick={() => {
+            setView("archive");
+            setId(0);
+            setTab("bracket");
+          }}
+        >
+          KUPA ARŞİVİ ({archived.length})
+        </button>
+      </div>
+      {championship && (
+        <div className="championship-banner">
+          <Trophy size={30} />
+          <div>
+            <span>ULUSAL KUPA · GRUPLU + ELEME</span>
+            <h2>{championship.name}</h2>
+          </div>
+          <Badge>
+            {championship.start}–{championship.end}. SIRALAR
+          </Badge>
+        </div>
+      )}
       <div className="toolbar">
         <Field label="KUPA SEÇİMİ">
           <Select
-            value={id}
+            value={cup?.id || ""}
+            disabled={!choices.length}
+            placeholder={
+              !choices.length
+                ? selectedView === "archive"
+                  ? "Arşivlenmiş kupa yok"
+                  : "Devam eden kupa yok"
+                : undefined
+            }
             onChange={(v) => setId(Number(v))}
-            options={data.cups.map((c) => ({
+            options={choices.map((c) => ({
               value: c.id,
               label: `${data.leagues.find((l) => l.id === c.id)?.name} | ${c.season} | ${c.type}`,
             }))}
           />
         </Field>
         {cup && (
-          <Badge positive={cup.stage === "TAMAMLANDI"}>{cup.stage}</Badge>
-        )}
-        {cup && can("AYARLAR.KUPA") && (
-          <>
-            <button
-              className="icon-button"
-              title="Kupayı düzenle"
-              onClick={() => setEdit(true)}
-            >
-              <Pencil size={17} />
-            </button>
-            <button
-              className="icon-button danger-text"
-              title="Kupayı sil"
-              onClick={() => setRemove(true)}
-            >
-              <Trash2 size={17} />
-            </button>
-          </>
+          <Badge positive={completed(cup)}>
+            {completed(cup) ? "TAMAMLANDI" : cup.stage}
+          </Badge>
         )}
       </div>
       {!cup ? (
-        <Empty>Henüz oluşturulmuş bir kupa bulunmuyor.</Empty>
+        <Empty>
+          {!data.cups.length
+            ? "Henüz oluşturulmuş bir kupa bulunmuyor."
+            : !visibleCups.length
+              ? "Görüntülenecek aktif kupa bulunmuyor."
+              : selectedView === "archive"
+                ? "Arşivde henüz tamamlanan kupa bulunmuyor."
+                : "Devam eden kupa bulunmuyor. Tamamlanan kupaları Kupa Arşivi sekmesinden görüntüleyebilirsiniz."}
+        </Empty>
       ) : (
         <>
           <Panel
@@ -681,7 +750,12 @@ export function Cups() {
                       <td>{String(i + 1).padStart(2, "0")}</td>
                       <td className="left">
                         <strong>{p.name}</strong>
-                        <small className="cell-sub">{p.team}{p.qualifiedRank?` · Lig sırası: ${p.qualifiedRank}`:''}</small>
+                        <small className="cell-sub">
+                          {p.team}
+                          {p.qualifiedRank
+                            ? ` · Lig sırası: ${p.qualifiedRank}`
+                            : ""}
+                        </small>
                       </td>
                       <td>{p.group || "KURA HAVUZU"}</td>
                       <td>
@@ -821,75 +895,25 @@ export function Cups() {
               <StatsTable rows={statistics(data.events, matches)} />
             </Panel>
           )}
-          {can("AYARLAR.KUPA") && cup.stage !== "TAMAMLANDI" && (
-            <button onClick={() => act("cup.advance", { id })}>
-              SONRAKİ TURU OLUŞTUR <ChevronRight size={16} />
-            </button>
-          )}
         </>
       )}
       <BackBar />
-      {create && (
-        <CupCreate
-          close={() => setCreate(false)}
-          onCreated={(id) => setId(id)}
-        />
-      )}{" "}
-      {edit && (
-        <Modal title="KUPAYI DÜZENLE" onClose={() => setEdit(false)}>
-          <Form
-            onSubmit={async (f) => {
-              if (
-                await act("cup.save", {
-                  id,
-                  name: f.get("name"),
-                  season: f.get("season"),
-                  status: f.get("status"),
-                })
-              )
-                setEdit(false);
-            }}
-          >
-            <Field label="KUPA ADI">
-              <input name="name" defaultValue={league.name} required />
-            </Field>
-            <Field label="SEZON">
-              <input name="season" defaultValue={cup.season} required />
-            </Field>
-            <Field label="DURUM">
-              <select name="status" defaultValue={league.status}>
-                <option>Aktif</option>
-                <option>Pasif</option>
-              </select>
-            </Field>
-          </Form>
-        </Modal>
-      )}
-      {remove && (
-        <Confirm
-          title="KUPAYI SİL"
-          message="Kupa, katılımcıları ve maç sonuçları silinecek. Devam edilsin mi?"
-          onClose={() => setRemove(false)}
-          onConfirm={async () => {
-            if (await act("cup.delete", { id })) {
-              setRemove(false);
-              setId(data.cups.find((c) => c.id !== id)?.id || 0);
-            }
-          }}
-        />
-      )}
     </div>
   );
 }
 
 export function Teams() {
-  const { data, can, act, navigate } = useApp();
-  const [league, setLeague] = useState(activeLeague(data)),
+  const { data, navigate, user, leagueScoped } = useApp();
+  const [league, setLeague] = useState(
+      leagueScoped ? user.managedLeagueId : activeLeague(data),
+    ),
     [id, setId] = useState(data.teams[0]?.id),
-    [edit, setEdit] = useState(false),
-    [logo, setLogo] = useState(""),
     [selectedCard, setSelectedCard] = useState(null);
-  const teams = data.teams.filter((t) => !league || t.leagueId === league),
+  const teams = data.teams.filter(
+      (t) =>
+        isActiveOrganization(data.leagues.find((l) => l.id === t.leagueId)) &&
+        (!league || t.leagueId === league),
+    ),
     team = teams.find((t) => t.id === id) || teams[0],
     museum = data.museum.find(
       (m) => m.team === team?.name && m.leagueId === team?.leagueId,
@@ -925,13 +949,6 @@ export function Teams() {
         ...totals,
       };
     });
-  const trophies = [
-    ["league", "LİG ŞAMPİYONLUĞU"],
-    ["cup", "LİG KUPASI"],
-    ["champions", "UEFA ŞAMPİYONLAR LİGİ"],
-    ["europa", "UEFA AVRUPA LİGİ"],
-    ["conference", "UEFA KONFERANS LİGİ"],
-  ];
   return (
     <div className="page teams-page">
       <h1 className="teams-heading">TAKIMLAR VE KADROLAR</h1>
@@ -1017,15 +1034,6 @@ export function Teams() {
                             <small>{k.card?.position}</small>
                           </span>
                         </button>
-                        {can("KATALOG.DUZENLE") && (
-                          <button
-                            className="icon-button danger-text"
-                            aria-label={`${k.card?.name} kadrodan çıkar`}
-                            onClick={() => act("squad.delete", { id: k.id })}
-                          >
-                            <Trash2 size={15} />
-                          </button>
-                        )}
                       </div>
                     </td>
                     {["gol", "asist", "sari", "kirmizi"].map((field) => (
@@ -1047,15 +1055,6 @@ export function Teams() {
               </tbody>
             </table>
           </div>
-          {can("KATALOG.DUZENLE") && (
-            <button
-              className="teams-catalog-link text-button"
-              onClick={() => navigate("catalog")}
-            >
-              <Plus size={14} />
-              KATALOGDAN FUTBOLCU EKLE
-            </button>
-          )}
         </section>
         <aside
           className="teams-identity-column"
@@ -1064,19 +1063,6 @@ export function Teams() {
           <section className="teams-logo-section">
             <div className="teams-logo-title">
               <h2>TAKIM LOGOSU</h2>
-              {team && (can("AYARLAR.TAKIM") || can("TAKIMLAR.DUZENLE")) && (
-                <button
-                  className="icon-button"
-                  aria-label="Takım ve müze düzenle"
-                  title="Takım ve müze düzenle"
-                  onClick={() => {
-                    setLogo(team.logo);
-                    setEdit(true);
-                  }}
-                >
-                  <Pencil size={16} />
-                </button>
-              )}
             </div>
             <div className="teams-logo-stage">
               <Photo
@@ -1086,20 +1072,7 @@ export function Teams() {
               />
             </div>
           </section>
-          <section className="teams-museum" aria-label="Takım müzesi">
-            <h2>TAKIM MÜZESİ</h2>
-            <div className="teams-museum-grid">
-              {trophies.map(([key, label], i) => (
-                <div
-                  className={`teams-museum-cell ${i < 2 ? "major" : ""}`}
-                  key={key}
-                >
-                  <span>{label}</span>
-                  <strong>{museum?.[key] || 0}</strong>
-                </div>
-              ))}
-            </div>
-          </section>
+          <TeamMuseum museum={museum} />
           <footer className="teams-footer">
             <button className="danger" onClick={() => navigate("home")}>
               ← GERİ DÖN
@@ -1182,62 +1155,25 @@ export function Teams() {
           </div>
         </Modal>
       )}
-      {edit && (
-        <Modal title="TAKIM VE MÜZE YÖNETİMİ" onClose={() => setEdit(false)}>
-          <Form
-            onSubmit={async (f) => {
-              if (
-                await act("team.save", {
-                  id: team.id,
-                  logo,
-                  ...Object.fromEntries(f),
-                })
-              )
-                setEdit(false);
-            }}
-          >
-            <h3>{team.name}</h3>
-            <ImageInput value={logo} onChange={setLogo} />
-            <div className="form-grid">
-              <Field label="BÜTÇE">
-                <input
-                  name="budget"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  defaultValue={team.budget}
-                />
-              </Field>
-              {trophies.map(([key, label]) => (
-                <Field key={key} label={label}>
-                  <input
-                    name={key}
-                    type="number"
-                    min="0"
-                    defaultValue={museum?.[key] || 0}
-                  />
-                </Field>
-              ))}
-            </div>
-          </Form>
-        </Modal>
-      )}
     </div>
   );
 }
 
 export function Catalog() {
-  const { data, can, act } = useApp();
+  const { data, can, act, user, leagueScoped, canManageLeague } = useApp();
   const [q, setQ] = useState(""),
     [position, setPosition] = useState(""),
     [nation, setNation] = useState(""),
-    [league, setLeague] = useState(activeLeague(data)),
+    [league, setLeague] = useState(
+      leagueScoped ? user.managedLeagueId : activeLeague(data),
+    ),
     [teamId, setTeam] = useState(""),
     [selected, setSelected] = useState([]),
     [detail, setDetail] = useState(data.catalog[0]),
     [page, setPage] = useState(0),
     [online, setOnline] = useState(false),
-    [remove, setRemove] = useState(false);
+    [remove, setRemove] = useState(false),
+    [teamManagement, setTeamManagement] = useState(false);
   const found = useMemo(
     () =>
       data.catalog.filter(
@@ -1253,7 +1189,12 @@ export function Catalog() {
       Math.min(page, pages - 1) * 100,
       (Math.min(page, pages - 1) + 1) * 100,
     ),
-    teams = data.teams.filter((t) => t.leagueId === league);
+    teams = data.teams.filter(
+      (t) =>
+        t.leagueId === league &&
+        canManageLeague(t.leagueId) &&
+        isActiveOrganization(data.leagues.find((l) => l.id === t.leagueId)),
+    );
   const toggle = (id) =>
     setSelected((s) =>
       s.includes(id) ? s.filter((x) => x !== id) : [...s, id],
@@ -1265,6 +1206,12 @@ export function Catalog() {
         subtitle={`${number(data.catalogCount)} futbolcu kartı • Yerel arama ve kadro yönetimi`}
       >
         {can("KATALOG.DUZENLE") && (
+          <button onClick={() => setTeamManagement(true)}>
+            <Users size={16} />
+            KADRO YÖNETİMİ
+          </button>
+        )}
+        {can("KATALOG.DUZENLE") && !leagueScoped && (
           <button className="primary" onClick={() => setOnline(true)}>
             <Search size={16} />
             PESDB'DE ARA
@@ -1330,15 +1277,18 @@ export function Catalog() {
       {can("KATALOG.DUZENLE") && (
         <div className="transfer-bar">
           <span>KADROYA EKLEME HEDEFİ</span>
-          <button
-            className="small danger-text"
-            disabled={!selected.length}
-            onClick={() => setRemove(true)}
-          >
-            <Trash2 size={14} />
-            SEÇİLİ KARTLARI SİL
-          </button>
+          {!leagueScoped && (
+            <button
+              className="small danger-text"
+              disabled={!selected.length}
+              onClick={() => setRemove(true)}
+            >
+              <Trash2 size={14} />
+              SEÇİLİ KARTLARI SİL
+            </button>
+          )}
           <LeagueSelect
+            management
             cups={false}
             value={league}
             onChange={(v) => {
@@ -1505,6 +1455,13 @@ export function Catalog() {
       {online && (
         <OnlineCatalog initialQuery={q} close={() => setOnline(false)} />
       )}
+      {teamManagement && (
+        <TeamManagementDialog
+          initialTeamId={Number(teamId) || undefined}
+          initialTab="squad"
+          onClose={() => setTeamManagement(false)}
+        />
+      )}
       {remove && (
         <Confirm
           title="KATALOG KARTLARINI SİL"
@@ -1524,7 +1481,7 @@ export function Catalog() {
 }
 
 export function News() {
-  const { data, can, act } = useApp();
+  const { data, can, act, user, leagueScoped, canManageLeague } = useApp();
   const [league, setLeague] = useState(0),
     [edit, setEdit] = useState(null),
     [open, setOpen] = useState(null),
@@ -1544,7 +1501,9 @@ export function News() {
           <button
             className="primary"
             onClick={() => {
-              setEdit({});
+              setEdit({
+                leagueId: leagueScoped ? user.managedLeagueId : league,
+              });
               setImage("");
             }}
           >
@@ -1589,7 +1548,7 @@ export function News() {
                 <button className="text-button" onClick={() => setOpen(n)}>
                   DEVAMINI OKU <ChevronRight size={15} />
                 </button>
-                {can("HABERLER.DUZENLE") && (
+                {can("HABERLER.DUZENLE") && canManageLeague(n.leagueId) && (
                   <div>
                     <button
                       className="icon-button"
@@ -1651,12 +1610,16 @@ export function News() {
               </Field>
               <Field label="GENEL / LİG / KUPA">
                 <select name="leagueId" defaultValue={edit.leagueId ?? league}>
-                  <option value="0">GENEL</option>
-                  {data.leagues.map((l) => (
-                    <option key={l.id} value={l.id}>
-                      {l.name}
-                    </option>
-                  ))}
+                  {!leagueScoped && <option value="0">GENEL</option>}
+                  {data.leagues
+                    .filter(
+                      (l) => canManageLeague(l.id) && isActiveOrganization(l),
+                    )
+                    .map((l) => (
+                      <option key={l.id} value={l.id}>
+                        {l.name}
+                      </option>
+                    ))}
                 </select>
               </Field>
             </div>
@@ -1697,12 +1660,16 @@ export function News() {
 }
 
 export function Streams() {
-  const { data, can, act } = useApp();
+  const { data, can, act, user, leagueScoped, canManageLeague } = useApp();
   const today = useBroadcastToday();
   const [edit, setEdit] = useState(null),
-    [league, setLeague] = useState(activeLeague(data)),
+    [league, setLeague] = useState(
+      leagueScoped ? user.managedLeagueId : activeLeague(data),
+    ),
     [remove, setRemove] = useState(null),
-    [tab, setTab] = useState("current");
+    [tab, setTab] = useState("current"),
+    [matchId, setMatchId] = useState(""),
+    [broadcastDate, setBroadcastDate] = useState(today);
   const current = data.streams
     .filter((y) => !isPastBroadcast(y, today))
     .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
@@ -1710,12 +1677,53 @@ export function Streams() {
     .filter((y) => isPastBroadcast(y, today))
     .sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time));
   const broadcasts = tab === "archive" ? archived : current;
-  const leagueObj = data.leagues.find((l) => l.id === league),
-    players =
-      leagueObj?.type === "Kupa"
-        ? data.participants.filter((p) => p.cupId === league)
-        : data.players.filter((p) => p.leagueId === league && p.active),
-    manage = can("YAYIN.DUZENLE") || can("HABERLER.DUZENLE");
+  const fixtures = data.matches
+    .filter(
+      (m) =>
+        m.leagueId === league &&
+        normalize(m.home) !== "bay" &&
+        normalize(m.away) !== "bay",
+    )
+    .slice()
+    .sort(
+      (a, b) =>
+        Number(played(a)) - Number(played(b)) ||
+        String(a.date || "").localeCompare(String(b.date || "")) ||
+        a.id - b.id,
+    );
+  const selectedMatch = fixtures.find((m) => m.id === Number(matchId));
+  const home = selectedMatch
+    ? fixtureParticipant(data, selectedMatch, "home")
+    : null;
+  const away = selectedMatch
+    ? fixtureParticipant(data, selectedMatch, "away")
+    : null;
+  const manage = can("YAYIN.DUZENLE") || can("HABERLER.DUZENLE");
+  function editBroadcast(broadcast) {
+    const matching = data.matches.filter(
+      (m) =>
+        m.leagueId === broadcast.leagueId &&
+        m.home === broadcast.home &&
+        m.away === broadcast.away,
+    );
+    const currentSeason = data.leagues.find(
+      (l) => l.id === broadcast.leagueId,
+    )?.season;
+    const linked = broadcast.matchId
+      ? data.matches.find(
+          (m) =>
+            m.id === broadcast.matchId &&
+            m.leagueId === broadcast.leagueId &&
+            (!broadcast.fixtureSeason ||
+              broadcast.fixtureSeason === currentSeason),
+        )
+      : matching.find((m) => m.date === broadcast.date) ||
+        (matching.length === 1 ? matching[0] : null);
+    setLeague(broadcast.leagueId);
+    setMatchId(linked ? String(linked.id) : "existing");
+    setBroadcastDate(broadcast.date || today);
+    setEdit({ ...broadcast, legacyFixture: !linked });
+  }
   return (
     <div className="page">
       <PageHead
@@ -1723,7 +1731,14 @@ export function Streams() {
         subtitle="Yayın programını planla, maçın heyecanını paylaş"
       >
         {manage && (
-          <button className="primary" onClick={() => setEdit({})}>
+          <button
+            className="primary"
+            onClick={() => {
+              setEdit({});
+              setMatchId("");
+              setBroadcastDate(today);
+            }}
+          >
             <Plus size={17} />
             YAYIN EKLE
           </button>
@@ -1779,15 +1794,12 @@ export function Streams() {
                   <Play size={16} />
                   YAYINI AÇ
                 </a>
-                {manage && (
+                {manage && canManageLeague(y.leagueId) && (
                   <>
                     <button
                       className="icon-button"
                       title="Yayını düzenle"
-                      onClick={() => {
-                        setLeague(y.leagueId);
-                        setEdit(y);
-                      }}
+                      onClick={() => editBroadcast(y)}
                     >
                       <Pencil size={16} />
                     </button>
@@ -1838,45 +1850,88 @@ export function Streams() {
             }}
           >
             <Field label="LİG / KUPA">
-              <LeagueSelect value={league} onChange={setLeague} />
+              <LeagueSelect
+                management
+                value={league}
+                onChange={(value) => {
+                  setLeague(value);
+                  setMatchId("");
+                }}
+              />
             </Field>
+            <Field
+              label="FİKSTÜRDEN MAÇ SEÇ"
+              hint="Oyuncu ve takım bilgileri seçilen fikstür maçından otomatik alınır."
+            >
+              <select
+                name="matchId"
+                required
+                value={matchId}
+                onChange={(e) => {
+                  setMatchId(e.target.value);
+                  const m = fixtures.find(
+                    (m) => m.id === Number(e.target.value),
+                  );
+                  if (m?.date) setBroadcastDate(m.date.slice(0, 10));
+                }}
+              >
+                <option value="">Fikstürden maç seçin</option>
+                {edit.legacyFixture && league === edit.leagueId && (
+                  <option value="existing">
+                    {edit.homeTeam || edit.home} – {edit.awayTeam || edit.away}{" "}
+                    (Eski yayın kaydı)
+                  </option>
+                )}
+                {fixtures.map((m) => {
+                  const h = fixtureParticipant(data, m, "home"),
+                    a = fixtureParticipant(data, m, "away");
+                  return (
+                    <option key={m.id} value={m.id}>
+                      {m.stage && m.stage !== "LIG"
+                        ? m.stage
+                        : `${m.week || "—"}. hafta`}{" "}
+                      · {h.team} ({h.name}) – {a.team} ({a.name}) ·{" "}
+                      {trDate(m.date)}
+                      {played(m) ? " · Oynandı" : ""}
+                    </option>
+                  );
+                })}
+              </select>
+            </Field>
+            {selectedMatch && (
+              <div className="stream-fixture-preview">
+                <div>
+                  <span>EV SAHİBİ</span>
+                  <strong>{home.team}</strong>
+                  <small>{home.name}</small>
+                </div>
+                <b>VS</b>
+                <div>
+                  <span>DEPLASMAN</span>
+                  <strong>{away.team}</strong>
+                  <small>{away.name}</small>
+                </div>
+              </div>
+            )}
+            {!fixtures.length && (
+              <p className="note">
+                Bu lig/kupada seçilebilecek fikstür maçı bulunmuyor.
+              </p>
+            )}
+            {matchId === "existing" && (
+              <p className="note">
+                Bu eski yayının maç bilgileri korunur. İsterseniz mevcut
+                fikstürden yeni bir maç seçebilirsiniz.
+              </p>
+            )}
             <div className="form-grid">
-              <Field label="EV SAHİBİ">
-                <select
-                  name="home"
-                  required
-                  defaultValue={edit.home}
-                  key={`home${league}`}
-                >
-                  <option value="">Oyuncu seçin</option>
-                  {players.map((p) => (
-                    <option key={p.id} value={p.name}>
-                      {p.name} • {p.team}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="DEPLASMAN">
-                <select
-                  name="away"
-                  required
-                  defaultValue={edit.away}
-                  key={`away${league}`}
-                >
-                  <option value="">Oyuncu seçin</option>
-                  {players.map((p) => (
-                    <option key={p.id} value={p.name}>
-                      {p.name} • {p.team}
-                    </option>
-                  ))}
-                </select>
-              </Field>
               <Field label="TARİH">
                 <input
                   name="date"
                   type="date"
                   required
-                  defaultValue={edit.date || today}
+                  value={broadcastDate}
+                  onChange={(e) => setBroadcastDate(e.target.value)}
                 />
               </Field>
               <Field label="SAAT">
@@ -1924,9 +1979,12 @@ export function Streams() {
 
 export function Archive() {
   const { data } = useApp();
-  const [id, setId] = useState(data.archive[0]?.leagueId || 0),
+  const [requestedId, setId] = useState(0),
     [season, setSeason] = useState("");
-  const ids = [...new Set(data.archive.map((a) => a.leagueId))],
+  const ids = [...new Set(data.archive.map((a) => a.leagueId))].filter((id) =>
+      isActiveOrganization(data.leagues.find((l) => l.id === id)),
+    ),
+    id = ids.includes(requestedId) ? requestedId : ids[0] || 0,
     seasons = [
       ...new Set(
         data.archive.filter((a) => a.leagueId === id).map((a) => a.season),
@@ -1946,6 +2004,10 @@ export function Archive() {
         <Field label="LİG">
           <Select
             value={id}
+            disabled={!ids.length}
+            placeholder={
+              !ids.length ? "Aktif lig arşivi bulunmuyor" : undefined
+            }
             onChange={(v) => {
               setId(Number(v));
               setSeason("");
@@ -1959,6 +2021,7 @@ export function Archive() {
         <Field label="SEZON">
           <Select
             value={selected || ""}
+            disabled={!seasons.length}
             onChange={setSeason}
             options={seasons}
           />

@@ -56,11 +56,12 @@ test("Geçmiş yayınlar arşivlenir ve gece yarısında ana sayfadan otomatik k
   const league = snapshot.leagues.find(
     (l) =>
       l.type === "Lig" &&
-      snapshot.players.filter((p) => p.active && p.leagueId === l.id).length >=
-        2,
+      snapshot.matches.some(
+        (m) => m.leagueId === l.id && m.home !== "BAY" && m.away !== "BAY",
+      ),
   );
-  const players = snapshot.players.filter(
-    (p) => p.active && p.leagueId === league.id,
+  const fixture = snapshot.matches.find(
+    (m) => m.leagueId === league.id && m.home !== "BAY" && m.away !== "BAY",
   );
   for (const [label, date] of [
     ["past", "2030-05-31"],
@@ -72,8 +73,7 @@ test("Geçmiş yayınlar arşivlenir ve gece yarısında ana sayfadan otomatik k
         op: "stream.save",
         payload: {
           leagueId: league.id,
-          home: players[0].name,
-          away: players[1].name,
+          matchId: fixture.id,
           date,
           time: "21:00",
           url: `https://example.com/archive-test-${label}`,
@@ -132,11 +132,13 @@ test("Genel, lig ve kupa haberleri ana menüde ve haber listesinde birbirine kar
   await login(page);
   const initial = await (await page.request.get("/api/bootstrap")).json();
   const leagueIds = initial.leagues
-    .filter((l) => l.type === "Lig")
+    .filter((l) => l.type === "Lig" && l.status === "Aktif")
     .slice(0, 2)
     .map((l) => l.id);
-  const cupId = initial.leagues.find((l) => l.type === "Kupa").id;
-  const scopes = [0, ...leagueIds, cupId];
+  const cupId = initial.leagues.find(
+    (l) => l.type === "Kupa" && l.status === "Aktif",
+  )?.id;
+  const scopes = [0, ...leagueIds, ...(cupId ? [cupId] : [])];
   for (const leagueId of scopes) {
     const response = await page.request.post("/api/action", {
       data: {
@@ -168,7 +170,7 @@ test("Genel, lig ve kupa haberleri ana menüde ve haber listesinde birbirine kar
     .getByRole("dialog")
     .getByLabel("GENEL / LİG / KUPA", { exact: true });
   await expect(category.locator('option[value="0"]')).toHaveText("GENEL");
-  await expect(category).toHaveValue(String(cupId));
+  await expect(category).toHaveValue(String(scopes.at(-1)));
   await page.keyboard.press("Escape");
   await page.clock.install();
   await page.goto("/#home");
@@ -262,8 +264,12 @@ test("Excel verileriyle giriş, gerçek lig/kupa sonuçları, tüm ekranlar ve m
     liveData.matches.filter((m) => m.leagueId === selectedLeague),
   )[0];
   await expect(page.locator("tr.leader")).toContainText(leader.player);
-  await expect(page.locator('tr.leader td.left strong')).toHaveText(leader.team || '—');
-  await expect(page.locator('tr.leader td.left .cell-sub')).toHaveText(leader.player);
+  await expect(page.locator("tr.leader td.left strong")).toHaveText(
+    leader.team || "—",
+  );
+  await expect(page.locator("tr.leader td.left .cell-sub")).toHaveText(
+    leader.player,
+  );
   await expect(page.locator("tr.leader .points")).toHaveText(String(leader.p));
   const leaguePanel = await page
     .locator(".league-layout > .panel")
@@ -286,31 +292,41 @@ test("Excel verileriyle giriş, gerçek lig/kupa sonuçları, tüm ekranlar ve m
     fullPage: true,
   });
   await page.getByRole("button", { name: "KUPALAR", exact: true }).click();
-  const cupMatches = liveData.matches.filter(
-    (m) => m.leagueId === liveData.cups[0].id,
+  const visibleCupId = Number(
+    await page.getByLabel("KUPA SEÇİMİ", { exact: true }).inputValue(),
   );
-  const final = cupMatches.find((m) => m.stage === "FINAL");
-  await expect(page.locator(".champion-card")).toContainText(
-    (final && winner(final)) || "Şampiyon bekleniyor",
-  );
-  await expect(page.locator(".bracket-game")).toHaveCount(
-    cupMatches.filter((m) =>
-      ["SON 16", "CEYREK FINAL", "YARI FINAL", "FINAL"].includes(m.stage),
-    ).length,
-  );
-  await expect(page.locator(".bracket-round > h3")).toHaveText([
-    "SON 16",
-    "ÇEYREK FİNAL",
-    "YARI FİNAL",
-    "FİNAL",
-    "ŞAMPİYON",
-  ]);
-  for (const [index, count] of [8, 4, 2, 1].entries())
+  if (visibleCupId) {
+    const cupMatches = liveData.matches.filter(
+      (m) => m.leagueId === visibleCupId,
+    );
+    const final = cupMatches.find((m) => m.stage === "FINAL");
+    await expect(page.locator(".champion-card")).toContainText(
+      (final && winner(final)) || "Şampiyon bekleniyor",
+    );
+    await expect(page.locator(".bracket-game")).toHaveCount(
+      cupMatches.filter((m) =>
+        ["SON 16", "CEYREK FINAL", "YARI FINAL", "FINAL"].includes(m.stage),
+      ).length,
+    );
+    await expect(page.locator(".bracket-round > h3")).toHaveText([
+      "SON 16",
+      "ÇEYREK FİNAL",
+      "YARI FİNAL",
+      "FİNAL",
+      "ŞAMPİYON",
+    ]);
+    for (const [index, count] of [8, 4, 2, 1].entries())
+      await expect(
+        page.locator(".bracket-round").nth(index).locator(".bracket-cell"),
+      ).toHaveCount(count);
+    const bracket = await page.locator(".bracket").boundingBox();
+    expect(bracket.height).toBeLessThan(500);
+  } else {
     await expect(
-      page.locator(".bracket-round").nth(index).locator(".bracket-cell"),
-    ).toHaveCount(count);
-  const bracket = await page.locator(".bracket").boundingBox();
-  expect(bracket.height).toBeLessThan(500);
+      page.getByLabel("KUPA SEÇİMİ", { exact: true }),
+    ).toBeDisabled();
+    await expect(page.locator(".champion-card")).toHaveCount(0);
+  }
   await page.screenshot({
     path: "test-results/cup-compact-last16.png",
     fullPage: true,
@@ -334,6 +350,26 @@ test("Excel verileriyle giriş, gerçek lig/kupa sonuçları, tüm ekranlar ve m
     await expect(
       page.getByRole("heading", { name: heading, exact: true }),
     ).toBeVisible();
+    if (route === "settings") {
+      const cards = page.locator("[data-settings-action]");
+      await expect(cards).toHaveCount(9);
+      for (const card of await cards.all()) {
+        await expect(card).toBeEnabled();
+        await card.hover();
+        await expect(card).not.toHaveCSS("transform", "none");
+      }
+      for (const label of ["EXCEL'E AKTAR", "WEB YEDEĞİ İNDİR"]) {
+        const link = page.getByRole("link", { name: label, exact: true });
+        await link.hover();
+        await expect(link).not.toHaveCSS("transform", "none");
+      }
+      await page.mouse.move(1000, 40);
+      await page.screenshot({
+        path: "test-results/settings-redesigned.png",
+        fullPage: true,
+        animations: "disabled",
+      });
+    }
     if (route === "catalog") {
       for (const viewport of [
         { width: 1920, height: 1080 },
@@ -384,7 +420,18 @@ test("Excel verileriyle giriş, gerçek lig/kupa sonuçları, tüm ekranlar ve m
       await expect(
         page.getByRole("table", { name: "Takım kadrosu ve istatistikleri" }),
       ).toBeVisible();
-      await expect(page.locator(".teams-museum-cell")).toHaveCount(5);
+      const museum = page.getByTestId("team-museum");
+      await expect(museum.locator("[data-trophy]")).toHaveCount(5);
+      await expect(museum.locator("img")).toHaveCount(5);
+      await expect
+        .poll(() =>
+          museum
+            .locator("img")
+            .evaluateAll((images) =>
+              images.every((image) => image.complete && image.naturalWidth > 0),
+            ),
+        )
+        .toBeTruthy();
       await expect(page.locator(".teams-logo-stage img")).toBeVisible();
       const left = await page.locator(".teams-roster-table").boundingBox(),
         right = await page.locator(".teams-logo-stage").boundingBox();
@@ -394,6 +441,18 @@ test("Excel verileriyle giriş, gerçek lig/kupa sonuçları, tüm ekranlar ve m
         fullPage: true,
       });
       const snapshot = await (await page.request.get("/api/bootstrap")).json();
+      const selectedTeamId = Number(
+        await page.getByLabel("TAKIM", { exact: true }).inputValue(),
+      );
+      const selectedTeam = snapshot.teams.find((t) => t.id === selectedTeamId);
+      const record = snapshot.museum.find(
+        (m) =>
+          m.leagueId === selectedTeam.leagueId && m.team === selectedTeam.name,
+      );
+      for (const key of ["league", "cup", "champions", "europa", "conference"])
+        await expect(
+          museum.locator(`[data-trophy="${key}"] strong`),
+        ).toHaveText(String(record?.[key] || 0));
       const roster = snapshot.squads.find(
         (k) =>
           snapshot.teams.some(
@@ -469,6 +528,19 @@ test("Excel verileriyle giriş, gerçek lig/kupa sonuçları, tüm ekranlar ve m
   ).toBeTruthy();
   await page.screenshot({
     path: "test-results/dashboard-mobile.png",
+    fullPage: true,
+  });
+  await page.goto("/#settings");
+  await expect(
+    page.getByRole("heading", { name: "AYARLAR", exact: true }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBeTruthy();
+  await page.screenshot({
+    path: "test-results/settings-mobile.png",
     fullPage: true,
   });
   await page.goto("/#teams");
@@ -621,7 +693,7 @@ test("Yeni kullanıcı ilk girişte şifresini belirler ve yeni şifreyle tekrar
       payload: {
         username: "test-first-login",
         password: "Initial-228",
-        role: "Kullanici",
+        role: "İzleyici",
         active: true,
       },
     },

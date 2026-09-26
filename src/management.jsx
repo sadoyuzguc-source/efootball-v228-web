@@ -34,136 +34,18 @@ import {
   Confirm,
   trDate,
 } from "./ui";
-import { played, nextSaturday, normalize, UEFA_COMPETITIONS, standings } from "../shared/rules.mjs";
+import {
+  played,
+  nextSaturday,
+  normalize,
+  isLeagueRole,
+  LEAGUE_ROLE_PERMISSIONS,
+} from "../shared/rules.mjs";
 import { MatchTable } from "./pages";
+import SettingsHub from "./SettingsHub";
 
 export function SettingsPage() {
-  const { data, can, navigate, notify } = useApp();
-  const [restore, setRestore] = useState(null);
-  const sections = [
-    [
-      "LİG VE KUPA YÖNETİMİ",
-      "cyan",
-      [
-        ["manage-leagues", "LİG OLUŞTUR", Shield, "AYARLAR.LIG"],
-        ["fixtures", "FİKSTÜR OLUŞTUR", CalendarDays, "AYARLAR.FIKSTUR"],
-        ["cups", "KUPA OLUŞTUR", Trophy, "AYARLAR.KUPA"],
-      ],
-    ],
-    [
-      "OYUNCU VE HESAP YÖNETİMİ",
-      "purple",
-      [
-        ["players", "OYUNCU KAYDET", UsersIcon, "AYARLAR.OYUNCU"],
-        ["users", "KULLANICI OLUŞTUR", UserPlus, "AYARLAR.KULLANICI"],
-        ["roles", "ROLLER VE YETKİLER", KeyRound, "ADMIN"],
-      ],
-    ],
-    [
-      "MAÇ VE SİSTEM YÖNETİMİ",
-      "gold",
-      [
-        ["teams", "TAKIM VE MÜZE YÖNETİMİ", Trophy, "AYARLAR.TAKIM"],
-        ["matches", "SKOR VE İSTATİSTİKLERİ GİR", Goal, "AYARLAR.SKOR"],
-        ["logs", "SİSTEM HAREKETLERİ", Activity, "AYARLAR.HAREKETLER"],
-      ],
-    ],
-  ];
-  return (
-    <div className="page">
-      <PageHead
-        title="AYARLAR"
-        subtitle="Lig, kupa, oyuncu, kullanıcı, takım, maç ve sistem yönetimini tek merkezden yönetin."
-      />
-      <div className="settings-groups">
-        {sections.map(([title, color, links]) => (
-          <Panel
-            key={title}
-            title={title}
-            className={`settings-group ${color}`}
-          >
-            {links.map(([route, label, Icon, permission]) => (
-              <button
-                key={route}
-                className="settings-button"
-                disabled={!can(permission)}
-                onClick={() => navigate(route)}
-              >
-                <Icon size={25} />
-                <span>{label}</span>
-                {!can(permission) && <Lock size={16} />}
-              </button>
-            ))}
-          </Panel>
-        ))}
-      </div>
-      <Panel title="VERİ VE YEDEKLEME">
-        <div className="backup-actions">
-          {can("AYARLAR.LIG") && (
-            <a className="button" href="/api/export">
-              <Download size={17} />
-              EXCEL'E AKTAR
-            </a>
-          )}
-          {can("ADMIN") && (
-            <>
-              <a className="button" href="/api/backup">
-                <Download size={17} />
-                WEB YEDEĞİ İNDİR
-              </a>
-              <label className="button">
-                <Upload size={17} />
-                YEDEKTEN GERİ YÜKLE
-                <input
-                  type="file"
-                  accept="application/json,.json"
-                  hidden
-                  onChange={async (e) => {
-                    const f = e.target.files[0];
-                    if (!f) return;
-                    try {
-                      setRestore(JSON.parse(await f.text()));
-                    } catch {
-                      notify("Yedek dosyası okunamadı.", "error");
-                    }
-                    e.target.value = "";
-                  }}
-                />
-              </label>
-            </>
-          )}
-        </div>
-        <p className="note">
-          Kaynak: {data.meta.source} · Aktarım: {trDate(data.meta.importedAt)} ·{" "}
-          {data.meta.missingAssetCount} harici görsel kaynağı bulunamadı.
-        </p>
-        <p className="note">
-          Kayıtlar bu projenin SQLite veritabanına otomatik kaydedilir. Web
-          yedeği tüm verileri içerir; yüklenen görseller için public/uploads
-          klasörünü de yedekleyin.
-        </p>
-      </Panel>
-      <BackBar />
-      {restore && (
-        <Confirm
-          title="YEDEKTEN GERİ YÜKLE"
-          message="Mevcut web verileri seçtiğiniz yedekle değiştirilecek. Önceki durum otomatik olarak data klasörüne kaydedilecek. İşlemden sonra tekrar giriş yapmanız gerekir."
-          onClose={() => setRestore(null)}
-          onConfirm={async () => {
-            try {
-              await api("/api/restore", {
-                method: "POST",
-                body: JSON.stringify(restore),
-              });
-              location.reload();
-            } catch (e) {
-              notify(e.message, "error");
-            }
-          }}
-        />
-      )}
-    </div>
-  );
+  return <SettingsHub />;
 }
 
 export function LeagueManager() {
@@ -325,14 +207,16 @@ export function LeagueManager() {
 }
 
 export function PlayerManager() {
-  const { data, act } = useApp();
+  const { data, act, user, leagueScoped, canManageLeague } = useApp();
   const [edit, setEdit] = useState(null),
     [q, setQ] = useState(""),
     [remove, setRemove] = useState(null),
     [selected, setSelected] = useState([]),
     [target, setTarget] = useState("");
-  const rows = data.players.filter((p) =>
-    normalize(p.name + " " + p.team).includes(normalize(q)),
+  const rows = data.players.filter(
+    (p) =>
+      canManageLeague(p.leagueId) &&
+      normalize(p.name + " " + p.team).includes(normalize(q)),
   );
   return (
     <div className="page">
@@ -356,30 +240,34 @@ export function PlayerManager() {
           />
         </div>
       </div>
-      <div className="transfer-bar">
-        <span>SEÇİLİ OYUNCULARI LİGE TAŞI</span>
-        <Select
-          aria-label="Oyuncu hedef ligi"
-          value={target}
-          onChange={setTarget}
-          placeholder="HEDEF LİG"
-          options={data.leagues.filter((l) => l.type === "Lig")}
-        />
-        <button
-          disabled={!selected.length || !target}
-          onClick={async () => {
-            if (
-              await act("player.transfer", {
-                ids: selected,
-                leagueId: Number(target),
-              })
-            )
-              setSelected([]);
-          }}
-        >
-          {selected.length} OYUNCUYU TAŞI
-        </button>
-      </div>
+      {!leagueScoped && (
+        <div className="transfer-bar">
+          <span>SEÇİLİ OYUNCULARI LİGE TAŞI</span>
+          <Select
+            aria-label="Oyuncu hedef ligi"
+            value={target}
+            onChange={setTarget}
+            placeholder="HEDEF LİG"
+            options={data.leagues.filter(
+              (l) => l.type === "Lig" && canManageLeague(l.id),
+            )}
+          />
+          <button
+            disabled={!selected.length || !target}
+            onClick={async () => {
+              if (
+                await act("player.transfer", {
+                  ids: selected,
+                  leagueId: Number(target),
+                })
+              )
+                setSelected([]);
+            }}
+          >
+            {selected.length} OYUNCUYU TAŞI
+          </button>
+        </div>
+      )}
       <Panel title="OYUNCULAR">
         <div className="table-wrap">
           <table>
@@ -475,10 +363,15 @@ export function PlayerManager() {
               <input name="team" required defaultValue={edit.team} />
             </Field>
             <Field label="LİG">
-              <select name="leagueId" defaultValue={edit.leagueId || 0}>
-                <option value="0">Atanmamış oyuncu</option>
+              <select
+                name="leagueId"
+                defaultValue={
+                  edit.leagueId ?? (leagueScoped ? user.managedLeagueId : 0)
+                }
+              >
+                {!leagueScoped && <option value="0">Atanmamış oyuncu</option>}
                 {data.leagues
-                  .filter((l) => l.type === "Lig")
+                  .filter((l) => l.type === "Lig" && canManageLeague(l.id))
                   .map((l) => (
                     <option key={l.id} value={l.id}>
                       {l.name}
@@ -512,10 +405,12 @@ export function PlayerManager() {
 }
 
 export function Fixtures() {
-  const { data, act, navigate } = useApp();
+  const { data, act, navigate, user, leagueScoped } = useApp();
   const [id, setId] = useState(
-      data.leagues.find((l) => l.type === "Lig" && l.status === "Aktif")?.id ||
-        0,
+      (leagueScoped
+        ? user.managedLeagueId
+        : data.leagues.find((l) => l.type === "Lig" && l.status === "Aktif")
+            ?.id) || 0,
     ),
     [start, setStart] = useState(nextSaturday()),
     [confirm, setConfirm] = useState(false);
@@ -529,7 +424,13 @@ export function Fixtures() {
       />
       <div className="toolbar">
         <Field label="LİG">
-          <LeagueSelect value={id} onChange={setId} cups={false} />
+          <LeagueSelect
+            management
+            active={false}
+            value={id}
+            onChange={setId}
+            cups={false}
+          />
         </Field>
         <Field label="BAŞLANGIÇ TARİHİ">
           <input
@@ -576,12 +477,13 @@ export function Fixtures() {
 }
 
 export function Matches() {
-  const { data } = useApp();
+  const { data, canManageLeague } = useApp();
   const [league, setLeague] = useState(0),
     [status, setStatus] = useState("all"),
     [edit, setEdit] = useState(null);
   const rows = data.matches.filter(
     (m) =>
+      canManageLeague(m.leagueId) &&
       (!league || m.leagueId === league) &&
       (status === "all" || (status === "played" ? played(m) : !played(m))),
   );
@@ -593,7 +495,13 @@ export function Matches() {
       />
       <div className="toolbar">
         <Field label="LİG / KUPA">
-          <LeagueSelect all value={league} onChange={setLeague} />
+          <LeagueSelect
+            management
+            active={false}
+            all
+            value={league}
+            onChange={setLeague}
+          />
         </Field>
         <Field label="DURUM">
           <Select
@@ -824,129 +732,26 @@ function MatchEditor({ match: m, close }) {
   );
 }
 
-export function CupCreate({ close, onCreated }) {
-  const { data, act } = useApp();
-  const [type, setType] = useState("direct"),
-    [ids, setIds] = useState([]),
-    [competition,setCompetition]=useState('champions'),
-    [name,setName]=useState('');
-  const qualification=UEFA_COMPETITIONS[competition];
-  const changeCompetition=value=>{
-    if(!name||Object.values(UEFA_COMPETITIONS).some(c=>c.name===name))setName(UEFA_COMPETITIONS[value].name);
-    setCompetition(value);
-  };
-  return (
-    <Modal title="KUPA OLUŞTUR VE KURA ÇEK" onClose={close} wide>
-      <Form
-        label="KUPAYI OLUŞTUR VE KURA ÇEK"
-        onSubmit={async (f) => {
-          const r = await act("cup.create", {
-            ...Object.fromEntries(f),
-            type,
-            competition:type==='group'?competition:'league',
-            leagueIds: ids,
-          });
-          if (r) {
-            onCreated?.(r.id);
-            close();
-          }
-        }}
-      >
-        <div className="form-grid">
-          <Field label="KUPA ADI">
-            <input name="name" required placeholder="Kupa adı" value={name} onChange={e=>setName(e.target.value)}/>
-          </Field>
-          <Field label="SEZON">
-            <input name="season" required defaultValue="1.SEZON" />
-          </Field>
-        </div>
-        <Field label="KUPA FORMATI">
-          <Select
-            value={type}
-            onChange={(v) => {
-              setType(v);
-              setIds([]);
-              if(v==='group'&&!name)setName(qualification.name);
-              if(v==='direct'&&Object.values(UEFA_COMPETITIONS).some(c=>c.name===name))setName('');
-            }}
-            options={[
-              { value: "direct", label: "LİG KUPASI - DOĞRUDAN ELEME" },
-              { value: "group", label: "ULUSAL KUPA - GRUPLU + ELEME" },
-            ]}
-          />
-        </Field>
-        {type==='group'&&<>
-          <Field label="ŞAMPİYONA"><Select value={competition} onChange={changeCompetition} options={Object.entries(UEFA_COMPETITIONS).map(([value,c])=>({value,label:`${c.name} | ${c.start}–${c.end}. sıralar`}))}/></Field>
-          <div className="qualification-bands">{Object.entries(UEFA_COMPETITIONS).map(([key,c])=><div className={key===competition?'selected':''} key={key} style={{'--competition-accent':c.color}}><strong>{c.start}–{c.end}.</strong><span>{c.name}</span></div>)}</div>
-        </>}
-        <Field
-          label={type === "direct" ? "KAYNAK LİG" : "KAYNAK LİGLER (TAM 4 LİG)"}
-        >
-          <div className="league-checks">
-            {data.leagues
-              .filter((l) => l.type === "Lig")
-              .map((l) => (
-                <label className="check-label" key={l.id}>
-                  <input
-                    type={type === "direct" ? "radio" : "checkbox"}
-                    name="sourceLeague"
-                    checked={ids.includes(l.id)}
-                    onChange={() =>
-                      setIds(
-                        type === "direct"
-                          ? [l.id]
-                          : ids.includes(l.id)
-                            ? ids.filter((i) => i !== l.id)
-                            : [...ids, l.id],
-                      )
-                    }
-                  />
-                  <span>
-                    {l.name}
-                    <small>
-                      {l.season} ·{" "}
-                      {
-                        data.players.filter(
-                          (p) => p.leagueId === l.id && p.active,
-                        ).length
-                      }{" "}
-                      aktif oyuncu
-                    </small>
-                  </span>
-                </label>
-              ))}
-          </div>
-        </Field>
-        {type === "group" && (
-          <>
-            <div className="qualification-summary"><strong>{qualification.name}</strong><span>Her kaynak ligden {qualification.start}–{qualification.end}. sıradaki 4 takım · 4 lig · 16 takım · 4 grup</span></div>
-            {ids.length>0&&<div className="qualification-preview">{ids.map(id=>{
-              const league=data.leagues.find(l=>l.id===id);
-              const matches=data.matches.filter(m=>m.leagueId===id);
-              const eligible=standings(data.players.filter(p=>p.leagueId===id),matches).slice(qualification.start-1,qualification.end);
-              return <section key={id}><h3>{league.name}</h3>{!matches.length||matches.some(m=>!played(m))?<p className="error-message">Kaynak ligin fikstürü tamamlanmalı.</p>:null}<ol start={qualification.start}>{eligible.map(row=><li key={row.id}><strong>{row.team}</strong> <small>{row.player}</small></li>)}</ol>{eligible.length<4&&<p className="error-message">Bu şampiyona için ligde en az {qualification.end} aktif takım olmalı.</p>}</section>;
-            })}</div>}
-            <p className="note">
-              Kontenjan şampiyonaya göre otomatik belirlenir. Her gruba her ligden bir takım yerleşir. Lig fikstürleri tamamlanmış olmalıdır.
-              Gruplardan ilk iki takım çeyrek finale çıkar.
-            </p>
-          </>
-        )}
-      </Form>
-    </Modal>
-  );
-}
-
 export function Users() {
   const { data, act } = useApp();
-  const [edit, setEdit] = useState(null);
+  const [edit, setEdit] = useState(null),
+    [selectedRole, setSelectedRole] = useState("");
+  const scopedRole = isLeagueRole(
+    data.roles.find((r) => r.name === selectedRole),
+  );
   return (
     <div className="page">
       <PageHead
         title="KULLANICI YÖNETİMİ"
         subtitle="Kullanıcı hesapları, geçici şifreler ve rol atamaları"
       >
-        <button className="primary" onClick={() => setEdit({})}>
+        <button
+          className="primary"
+          onClick={() => {
+            setEdit({});
+            setSelectedRole("");
+          }}
+        >
           <UserPlus size={17} />
           KULLANICI OLUŞTUR
         </button>
@@ -959,6 +764,7 @@ export function Users() {
                 <th>#</th>
                 <th className="left">KULLANICI ADI</th>
                 <th>ROL</th>
+                <th>YETKİLİ LİG</th>
                 <th>DURUM</th>
                 <th>İLK GİRİŞ</th>
                 <th />
@@ -973,13 +779,25 @@ export function Users() {
                   </td>
                   <td>{u.role}</td>
                   <td>
+                    {isLeagueRole(data.roles.find((r) => r.name === u.role))
+                      ? data.leagues.find((l) => l.id === u.managedLeagueId)
+                          ?.name || "Lig atanmamış"
+                      : "—"}
+                  </td>
+                  <td>
                     <Badge positive={u.active}>
                       {u.active ? "Aktif" : "Pasif"}
                     </Badge>
                   </td>
                   <td>{u.firstLogin ? "Şifre belirleyecek" : "Tamamlandı"}</td>
                   <td>
-                    <button className="small" onClick={() => setEdit(u)}>
+                    <button
+                      className="small"
+                      onClick={() => {
+                        setEdit(u);
+                        setSelectedRole(u.role);
+                      }}
+                    >
                       <Pencil size={15} />
                       DÜZENLE
                     </button>
@@ -1033,13 +851,39 @@ export function Users() {
               />
             </Field>
             <Field label="ROL">
-              <select name="role" defaultValue={edit.role || ""} required>
+              <select
+                name="role"
+                value={selectedRole}
+                onChange={(e) => setSelectedRole(e.target.value)}
+                required
+              >
                 <option value="">Rol seçin</option>
                 {data.roles.map((r) => (
                   <option key={r.id}>{r.name}</option>
                 ))}
               </select>
             </Field>
+            {scopedRole && (
+              <Field
+                label="YETKİLİ LİG"
+                hint="Bu kullanıcı yalnızca seçilen ligde oyuncu, kadro ve istatistik işlemi yapabilir."
+              >
+                <select
+                  name="managedLeagueId"
+                  required
+                  defaultValue={edit.managedLeagueId || ""}
+                >
+                  <option value="">Yetkili lig seçin</option>
+                  {data.leagues
+                    .filter((l) => l.type === "Lig")
+                    .map((l) => (
+                      <option key={l.id} value={l.id}>
+                        {l.name} · {l.season}
+                      </option>
+                    ))}
+                </select>
+              </Field>
+            )}
             <Field label="BAĞLI OYUNCU">
               <select name="playerId" defaultValue={edit.playerId || 0}>
                 <option value="0">Bağlı oyuncu yok</option>
@@ -1069,7 +913,8 @@ export function Roles() {
   const { data, act } = useApp();
   const [edit, setEdit] = useState(null),
     [codes, setCodes] = useState([]),
-    [remove, setRemove] = useState(null);
+    [remove, setRemove] = useState(null),
+    [scope, setScope] = useState("global");
   return (
     <div className="page">
       <PageHead
@@ -1081,6 +926,7 @@ export function Roles() {
           onClick={() => {
             setEdit({});
             setCodes([]);
+            setScope("global");
           }}
         >
           <Plus size={17} />
@@ -1096,6 +942,11 @@ export function Roles() {
           >
             <div className="role-body">
               <p>{r.description}</p>
+              {isLeagueRole(r) && (
+                <p className="league-access-note">
+                  Lig kapsamlı rol · Yetkili lig kullanıcı hesabından atanır.
+                </p>
+              )}
               <div className="permission-tags">
                 {data.permissions
                   .filter((p) => p.role === r.name)
@@ -1107,6 +958,7 @@ export function Roles() {
                 <button
                   onClick={() => {
                     setEdit(r);
+                    setScope(isLeagueRole(r) ? "league" : "global");
                     setCodes(
                       data.permissions
                         .filter((p) => p.role === r.name)
@@ -1154,6 +1006,16 @@ export function Roles() {
                 <input
                   name="name"
                   defaultValue={edit.name}
+                  onChange={(e) => {
+                    if (isLeagueRole(e.target.value)) {
+                      setScope("league");
+                      setCodes(
+                        codes.filter((c) =>
+                          LEAGUE_ROLE_PERMISSIONS.includes(c),
+                        ),
+                      );
+                    }
+                  }}
                   required
                   minLength={2}
                 />
@@ -1162,23 +1024,50 @@ export function Roles() {
                 <input name="description" defaultValue={edit.description} />
               </Field>
             </div>
+            <Field
+              label="YETKİ KAPSAMI"
+              hint="Lig kapsamlı roller, TUMU gibi genel izinler verilse bile yalnızca hesaba atanmış ligde çalışır."
+            >
+              <select
+                name="scope"
+                value={scope}
+                onChange={(e) => {
+                  setScope(e.target.value);
+                  if (e.target.value === "league")
+                    setCodes(
+                      codes.filter((c) => LEAGUE_ROLE_PERMISSIONS.includes(c)),
+                    );
+                }}
+                disabled={edit.system}
+              >
+                <option value="global">
+                  Sistem genelinde (seçili yetkilere göre)
+                </option>
+                <option value="league">Yalnızca hesaba atanmış lig</option>
+              </select>
+            </Field>
             <div className="permissions-grid">
-              {data.permissionCodes.map((c) => (
-                <label className="check-label" key={c}>
-                  <input
-                    type="checkbox"
-                    checked={codes.includes(c)}
-                    onChange={() =>
-                      setCodes(
-                        codes.includes(c)
-                          ? codes.filter((x) => x !== c)
-                          : [...codes, c],
-                      )
-                    }
-                  />
-                  {c}
-                </label>
-              ))}
+              {data.permissionCodes
+                .filter(
+                  (c) =>
+                    scope !== "league" || LEAGUE_ROLE_PERMISSIONS.includes(c),
+                )
+                .map((c) => (
+                  <label className="check-label" key={c}>
+                    <input
+                      type="checkbox"
+                      checked={codes.includes(c)}
+                      onChange={() =>
+                        setCodes(
+                          codes.includes(c)
+                            ? codes.filter((x) => x !== c)
+                            : [...codes, c],
+                        )
+                      }
+                    />
+                    {c}
+                  </label>
+                ))}
             </div>
           </Form>
         </Modal>

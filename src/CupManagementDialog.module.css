@@ -1,0 +1,105 @@
+.tabs {
+  margin-bottom: 20px;
+}
+.success {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 12px 14px;
+  margin-bottom: 18px;
+  border: 1px solid #77d8b85e;
+  border-radius: 5px;
+  background: #144b3d55;
+  color: #9aebcf;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.success > svg {
+  flex-shrink: 0;
+}
+.summary {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 14px;
+  border: 1px solid #5b839b66;
+  border-radius: 5px;
+  background: linear-gradient(110deg, #143953, #102b41);
+  margin-bottom: 20px;
+}
+.summary > svg {
+  color: #edcf8c;
+  flex-shrink: 0;
+}
+.summary > div {
+  flex: 1;
+  min-width: 0;
+}
+.summary strong {
+  display: block;
+  font-size: 13px;
+  color: #e2f4ff;
+  line-height: 1.6;
+}
+.summary small {
+  display: block;
+  font-size: 10px;
+  color: #a5bed0;
+  margin-top: 5px;
+}
+.actions {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+.deleteConfirm {
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid #e2809080;
+  border-radius: 5px;
+  background: #5a273244;
+}
+.deleteConfirm p {
+  margin-bottom: 14px;
+  line-height: 1.7;
+  color: #efbac5;
+}
+.deleteConfirm button {
+  margin-right: 10px;
+}
+.result {
+  margin-top: 20px;
+  border: 1px solid #456c8566;
+  border-radius: 5px;
+  overflow: hidden;
+  background: #0a2236;
+}
+.result > summary {
+  padding: 13px 15px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: #aae2f8;
+  background: #14334b;
+}
+.result > div {
+  max-height: 260px;
+  overflow: auto;
+}
+@media (max-width: 700px) {
+  .summary {
+    flex-wrap: wrap;
+  }
+  .summary > span {
+    margin-left: 37px;
+  }
+  .actions > button {
+    width: 100%;
+  }
+  .result table {
+    min-width: 420px;
+  }
+}

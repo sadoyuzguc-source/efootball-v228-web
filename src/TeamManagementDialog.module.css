@@ -1,0 +1,122 @@
+.selectors {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.team {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 13px;
+  background: #102d44;
+  border: 1px solid #466a8470;
+  border-radius: 5px;
+}
+.team > img,
+.team > div:first-child {
+  width: 46px;
+  height: 50px;
+  flex-shrink: 0;
+  object-fit: contain;
+}
+.team strong {
+  display: block;
+  color: #ecf6ff;
+  font-size: 14px;
+}
+.team small {
+  display: block;
+  color: #a3bed2;
+  margin-top: 6px;
+  font-size: 11px;
+}
+.tabs {
+  margin: 18px 0;
+}
+.editor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+  gap: 22px;
+  align-items: start;
+}
+.profileFields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+.subheading {
+  color: #97c9e5;
+  font-size: 16px;
+}
+.counts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 12px;
+}
+.counts input {
+  font-size: 17px;
+  font-weight: 700;
+}
+.preview {
+  min-width: 0;
+  padding-top: 3px;
+}
+.previewLabel {
+  display: block;
+  color: #8ba9bd;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  margin-bottom: 12px;
+}
+.success {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: #89e5bf;
+  background: #15433577;
+  border: 1px solid #72c5a455;
+  border-radius: 4px;
+  padding: 12px;
+  margin-top: 16px;
+  font-size: 12px;
+}
+.addPlayer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
+  gap: 14px;
+}
+.roster {
+  border: 1px solid #496d875c;
+  margin-top: 20px;
+  max-height: 350px;
+  overflow: auto;
+}
+.transfer {
+  background: #143449;
+  border: 1px solid #69a5c56b;
+  border-radius: 5px;
+  padding: 16px;
+  margin-top: 20px;
+}
+.transfer h3 {
+  margin: 0 0 8px;
+  color: #aae5fa;
+}
+.transfer p {
+  font-size: 12px;
+  margin-bottom: 16px;
+  color: #c0d7e7;
+}
+@media (max-width: 700px) {
+  .selectors,
+  .editor,
+  .addPlayer {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .preview {
+    padding-top: 12px;
+  }
+  .roster table {
+    min-width: 440px;
+  }
+}

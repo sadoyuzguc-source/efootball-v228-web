@@ -12,13 +12,36 @@ Uygulama kapalıysa bu klasördeki **`BASLAT.cmd`** dosyasına çift tıklayın.
 
 ## Ekranlar
 
+Ayarlar dışındaki lig/kupa seçimleri yalnızca **Aktif** kayıtları listeler. Pasif kayıtlar, Ayarlar'dan açılan yönetim ekranlarında seçilmeye devam eder. Kupa ve sezon arşivi filtreleri de ilgili organizasyonun aktiflik durumuna uyar.
+
+### Kupa oluşturma ve yönetimi
+
+**Ayarlar → Kupa Oluştur** kartı aynı ekranda kupa yönetimi penceresini açar. **Yeni Kupa ve Kura** sekmesinde format, sezon, kaynak ligler ve gerekiyorsa UEFA şampiyonası seçilir; **Kupayı Oluştur ve Kura Çek** düğmesi katılımcıları ve eşleşmeleri oluşturur. Sonuçlar Ayarlar içindeki **Kayıtlı Kupalar** sekmesinde gösterilir. Kupa bilgilerini düzenleme, sonraki turu oluşturma ve silme de burada yapılır.
+
+**Kupalar** menüsü yalnızca katılımcı, grup puanı, eleme ağacı, maç ve istatistik görüntülemek içindir. **Devam Eden Kupalar** filtresinde tamamlanmış kupalar listelenmez; bunlar **Kupa Arşivi** sekmesinde sonuçlarıyla gösterilir. Devam eden kupa yoksa sayfa arşivi otomatik açar.
+
+### Takım müzesini elle düzenleme
+
+**Ayarlar → Takım ve Müze Yönetimi** kartı, Ayarlar ekranında bir yönetim penceresi açar. Lig ve takım seçildikten sonra **Takım ve Müze** sekmesinden logo, bütçe ve beş şampiyonluk sayacı düzenlenir. Önizleme anlık güncellenir; **Takım ve Müzeyi Kaydet** düğmesiyle kalıcı kayıt yapılır.
+
+**Takımlar** menüsü yalnızca görüntüleme içindir. Kadro ekleme/çıkarma ve transfer işlemleri yönetim penceresinin **Kadro ve Transfer** sekmesinden veya **PESDB Kataloğu → Kadro Yönetimi** üzerinden yapılır. Lig ve rol yetkileri her iki girişte de geçerlidir.
+
+### İzleyici ve Lig Admini
+
+- Giriş ekranındaki **İzleyici Olarak Devam Et** düğmesiyle hesap oluşturmadan siteye girilebilir. Misafir yalnızca yayımlanan verileri görüntüler; kayıt, transfer, skor, kullanıcı, rol ve yedek işlemleri yapamaz.
+- Eski **Kullanici** sistem rolü kaldırılır. Bağlı hesaplar varsa şifreleri ve kayıtları korunarak **İzleyici** rolüne geçirilir. İlk uygulamadan önce `data/access-before-*.json` yedeği oluşturulur.
+- **LİG ADMİNİ** rolü lig kapsamlıdır. Admin hesabıyla **Ayarlar → Kullanıcı Yönetimi → Oluştur/Düzenle** ekranında rolü seçin ve **Yetkili Lig** atayın. Aynı roldeki farklı kullanıcılara farklı ligler atanabilir.
+- Lig Admini kendi ligindeki oyuncuları ekler/düzenler/çıkarır, skor ve futbolcu olaylarını kaydeder, mevcut katalogdan kendi takım kadrolarına kart ekler/çıkarır. Takımlar ekranındaki futbolcu satırının **transfer** düğmesiyle kendi ligi içindeki başka bir takıma aktarır.
+- Başka lige ait kayıtları değiştirmek, ligler arasında oyuncu almak/taşımak, genel kataloğu silmek, kupa/rol/kullanıcı yönetmek veya yedek almak lig kapsamıyla engellenir. Atanmamış Lig Admini değişiklik yapamaz. Mevcut fikstür ve maç geçmişi kuralları geçerlidir.
+- Roller ekranında yeni bir özel role **Yalnızca hesaba atanmış lig** kapsamı da verilebilir. Lig sınırı hem arayüzde hem API'de uygulanır.
+
 - **Ana menü:** Lig/kupa filtresi, gerçek haberler, haber gezintisi, yayın takvimi ve canlı sayaçlar.
 - **Ligler:** Oyuncu/takım puan durumu, tek/çift devre fikstür, gol/asist/kart istatistikleri ve sezon arşivi.
 - **Kupalar:** Doğrudan eleme, dört ligden gruplu kupa, kura, BAY geçişi, eleme ağacı, otomatik sonraki tur ve şampiyonun müzeye yazılması.
 - **Takımlar:** Menajer, bütçe, logo, takım müzesi, kadro ve kadrodan çıkarma.
 - **PESDB kataloğu:** Yerel arama, pozisyon/uyruk filtresi, çoklu seçim, hedef takıma aktarım; PESDATA çevrimiçi araması ve sonuçlardan yerel kataloğa kart ekleme.
 - **Haberler:** Oluşturma, düzenleme, silme, aktif/pasif durum, lig filtresi, fotoğraf yükleme.
-- **Canlı yayın:** Lig oyuncularından eşleşme, tarih/saat/link, düzenleme, aktif/pasif durum ve yayını açma.
+- **Canlı yayın:** Lig/kupa fikstüründen maç seçimi; otomatik ev sahibi/deplasman ve takım bilgileri; düzenlenebilir tarih/saat/link, aktif/pasif durum ve yayın arşivi. BAY eşleşmeleri seçilemez. Fikstürü arşivlenmiş eski yayınların maç bilgileri korunarak yayın ayrıntıları düzenlenebilir.
 - **Ayarlar:** Lig/oyuncu/kullanıcı/rol yönetimi, oyuncuları topluca lige taşıma, fikstür, skor ve olay girişi, sistem hareketleri, Excel dışa aktarımı ve web yedeği.
 
 ## Temel kurallar

@@ -15,7 +15,11 @@ import {
   PERMISSIONS,
   UEFA_COMPETITIONS,
   cupCompetition,
+  isLeagueRole,
+  READ_PERMISSIONS,
+  fixtureParticipant,
 } from "../shared/rules.mjs";
+import { assertOperationScope } from "./access.mjs";
 
 const fail = (message, status = 400) => {
   throw Object.assign(Error(message), { status });
@@ -58,7 +62,20 @@ const imagePath = (s) => {
   return s;
 };
 export const actor = (state, id) => {
+  if (id === 0)
+    return {
+      id: 0,
+      username: "Misafir",
+      role: "İzleyici",
+      isGuest: true,
+      scope: "readonly",
+      managedLeagueId: null,
+      playerId: 0,
+      firstLogin: false,
+      permissions: READ_PERMISSIONS,
+    };
   const u = state.users.find((u) => u.id === id && u.active);
+  const role = u ? state.roles.find((r) => r.name === u.role) : null;
   return u
     ? {
         id: u.id,
@@ -66,6 +83,9 @@ export const actor = (state, id) => {
         role: u.role,
         playerId: u.playerId,
         firstLogin: u.firstLogin,
+        isGuest: false,
+        scope: isLeagueRole(role) || isLeagueRole(u.role) ? "league" : "global",
+        managedLeagueId: Number(u.managedLeagueId) || null,
         permissions: state.permissions
           .filter((p) => p.role === u.role)
           .map((p) => p.code),
@@ -106,8 +126,11 @@ function museumWinner(s, cup, name) {
     };
     s.museum.push(m);
   }
-  const competition=cupCompetition(cup,s.leagues.find(l=>l.id===cup.id));
-  const field=competition==='league'?'cup':competition;
+  const competition = cupCompetition(
+    cup,
+    s.leagues.find((l) => l.id === cup.id),
+  );
+  const field = competition === "league" ? "cup" : competition;
   m[field]++;
   m.updatedAt = new Date().toISOString();
   cup.museumMarker = `${p.team}|${field}`;
@@ -202,6 +225,7 @@ function removeCompetition(s, id) {
 
 export function execute(s, user, op, p) {
   if (!user) fail("Oturum açmanız gerekiyor.", 401);
+  assertOperationScope(s, user, op, p);
   if (user.firstLogin && op !== "password")
     fail("Önce kişisel şifrenizi belirleyin.", 403);
   let result = { message: "İşlem kaydedildi." };
@@ -485,12 +509,20 @@ export function execute(s, user, op, p) {
     }
     case "cup.create": {
       authorize(user, "AYARLAR.KUPA");
-      if(!['direct','group'].includes(p.type))fail('Geçerli bir kupa formatı seçin.');
-      const grouped=p.type==='group';
-      const competition=grouped ? (p.competition || Object.keys(UEFA_COMPETITIONS).find(key=>UEFA_COMPETITIONS[key].start===Number(p.quota??1))) : 'league';
-      const qualification=UEFA_COMPETITIONS[competition];
-      if(grouped&&!qualification)fail('Şampiyonlar Ligi, Avrupa Ligi veya Konferans Ligi seçin.');
-      if(grouped&&p.quota!=null&&Number(p.quota)!==qualification.start)fail('Kontenjan seçilen şampiyonaya göre otomatik belirlenir.');
+      if (!["direct", "group"].includes(p.type))
+        fail("Geçerli bir kupa formatı seçin.");
+      const grouped = p.type === "group";
+      const competition = grouped
+        ? p.competition ||
+          Object.keys(UEFA_COMPETITIONS).find(
+            (key) => UEFA_COMPETITIONS[key].start === Number(p.quota ?? 1),
+          )
+        : "league";
+      const qualification = UEFA_COMPETITIONS[competition];
+      if (grouped && !qualification)
+        fail("Şampiyonlar Ligi, Avrupa Ligi veya Konferans Ligi seçin.");
+      if (grouped && p.quota != null && Number(p.quota) !== qualification.start)
+        fail("Kontenjan seçilen şampiyonaya göre otomatik belirlenir.");
       const name = required(p.name, "Kupa adı"),
         season = required(p.season, "Sezon");
       if (
@@ -524,8 +556,26 @@ export function execute(s, user, op, p) {
             : "Kaynak lig seçin.",
         );
       let participants = [];
-      if(grouped&&s.cups.some(existing=>existing.season===season&&cupCompetition(existing,s.leagues.find(l=>l.id===existing.id))===competition&&s.participants.some(participant=>participant.cupId===existing.id&&ids.includes(participant.leagueId))))fail('Bu sezon seçilen kaynak liglerden biri bu şampiyonaya zaten katılmış.');
-      cup.sourceLeagueIds=ids;
+      if (
+        grouped &&
+        s.cups.some(
+          (existing) =>
+            existing.season === season &&
+            cupCompetition(
+              existing,
+              s.leagues.find((l) => l.id === existing.id),
+            ) === competition &&
+            s.participants.some(
+              (participant) =>
+                participant.cupId === existing.id &&
+                ids.includes(participant.leagueId),
+            ),
+        )
+      )
+        fail(
+          "Bu sezon seçilen kaynak liglerden biri bu şampiyonaya zaten katılmış.",
+        );
+      cup.sourceLeagueIds = ids;
       for (const leagueId of ids) {
         const l = find(s.leagues, leagueId);
         if (l.type !== "Lig") fail("Kaynak kayıt bir lig olmalıdır.");
@@ -540,8 +590,17 @@ export function execute(s, user, op, p) {
           ? ranked.slice(qualification.start - 1, qualification.end)
           : ranked;
         if (selected.length < (grouped ? 4 : 2))
-          fail(grouped?`${l.name}: ${qualification.name} için en az ${qualification.end} aktif takım gerekir (${qualification.start}–${qualification.end}. sıralar).`:'Seçilen ligde en az iki aktif oyuncu gerekir.');
-        shuffled(selected.map((r,index)=>({...r,qualifiedRank:grouped?qualification.start+index:index+1}))).forEach((r, i) =>
+          fail(
+            grouped
+              ? `${l.name}: ${qualification.name} için en az ${qualification.end} aktif takım gerekir (${qualification.start}–${qualification.end}. sıralar).`
+              : "Seçilen ligde en az iki aktif oyuncu gerekir.",
+          );
+        shuffled(
+          selected.map((r, index) => ({
+            ...r,
+            qualifiedRank: grouped ? qualification.start + index : index + 1,
+          })),
+        ).forEach((r, i) =>
           participants.push({
             cupId: id,
             leagueId,
@@ -551,8 +610,8 @@ export function execute(s, user, op, p) {
             group: grouped ? "ABCD"[i] : "",
             draw: i + 1,
             status: "Aktif",
-            qualifiedRank:r.qualifiedRank,
-            sourceSeason:l.season || '',
+            qualifiedRank: r.qualifiedRank,
+            sourceSeason: l.season || "",
           }),
         );
       }
@@ -726,6 +785,29 @@ export function execute(s, user, op, p) {
       result.message = `${count} futbolcu kadroya eklendi.`;
       break;
     }
+    case "squad.transfer": {
+      authorize(user, "KATALOG.DUZENLE");
+      const squad = find(s.squads, p.id, "Kadro kaydı"),
+        team = find(s.teams, p.teamId, "Hedef takım");
+      if (
+        s.squads.some(
+          (k) =>
+            k.id !== squad.id &&
+            k.leagueId === team.leagueId &&
+            k.team === team.name &&
+            k.catalogId === squad.catalogId,
+        )
+      )
+        fail("Bu futbolcu hedef takımın kadrosunda zaten var.");
+      if (squad.team === team.name && squad.leagueId === team.leagueId)
+        fail("Farklı bir hedef takım seçin.");
+      const old = squad.team;
+      squad.team = team.name;
+      squad.leagueId = team.leagueId;
+      squad.createdAt = new Date().toISOString();
+      result.message = `Futbolcu ${old} takımından ${team.name} takımına transfer edildi.`;
+      break;
+    }
     case "squad.delete":
       authorize(user, "KATALOG.DUZENLE");
       find(s.squads, p.id);
@@ -775,16 +857,40 @@ export function execute(s, user, op, p) {
       if (!permitted(user, "YAYIN.DUZENLE"))
         authorize(user, "HABERLER.DUZENLE");
       const l = find(s.leagues, p.leagueId);
-      const home = required(p.home, "Ev sahibi"),
-        away = required(p.away, "Deplasman");
-      if (home === away) fail("İki farklı oyuncu seçin.");
-      const options =
-        l.type === "Kupa"
-          ? s.participants.filter((x) => x.cupId === l.id)
-          : s.players.filter((x) => x.leagueId === l.id && x.active);
-      const h = options.find((x) => x.name === home),
-        a = options.find((x) => x.name === away);
-      if (!h || !a) fail("Seçilen ligin oyuncularını kullanın.");
+      const existing = p.id ? find(s.streams, p.id, "Yayın") : null;
+      let matchId, home, away, homeTeam, awayTeam;
+      if (p.matchId === "existing") {
+        if (
+          !existing ||
+          existing.leagueId !== l.id ||
+          (existing.matchId &&
+            (!existing.fixtureSeason || existing.fixtureSeason === l.season) &&
+            s.matches.some(
+              (m) => m.id === existing.matchId && m.leagueId === l.id,
+            ))
+        )
+          fail("Fikstürden maç seçin.");
+        // Keep historical broadcasts editable after their season fixture has been archived.
+        ({ home, away, homeTeam, awayTeam } = existing);
+        matchId = existing.matchId || null;
+      } else {
+        const match = find(
+          s.matches,
+          integer(p.matchId, "Fikstür maçı", 1),
+          "Fikstür maçı",
+        );
+        if (match.leagueId !== l.id)
+          fail("Seçilen maç bu lig/kupaya ait değil.");
+        if (normalize(match.home) === "bay" || normalize(match.away) === "bay")
+          fail("BAY eşleşmesi için yayın oluşturulamaz.");
+        const h = fixtureParticipant(s, match, "home"),
+          a = fixtureParticipant(s, match, "away");
+        matchId = match.id;
+        home = h.name;
+        away = a.name;
+        homeTeam = h.team;
+        awayTeam = a.team;
+      }
       if (!/^https?:\/\//.test(p.url))
         fail("Geçerli bir http veya https yayın bağlantısı girin.");
       try {
@@ -795,18 +901,21 @@ export function execute(s, user, op, p) {
       if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(p.time))
         fail("Geçerli bir saat girin.");
       const data = {
+        matchId,
+        fixtureSeason:
+          p.matchId === "existing" ? existing.fixtureSeason || null : l.season,
         leagueId: l.id,
         league: l.name,
         home,
         away,
-        homeTeam: h.team,
-        awayTeam: a.team,
+        homeTeam,
+        awayTeam,
         date: validDate(p.date),
         time: p.time,
         url: p.url,
         active: p.active !== false,
       };
-      if (p.id) Object.assign(find(s.streams, p.id), data);
+      if (existing) Object.assign(existing, data);
       else s.streams.push({ id: nextId(s.streams), ...data });
       break;
     }
@@ -821,7 +930,24 @@ export function execute(s, user, op, p) {
       const username = required(p.username, "Kullanıcı adı"),
         role = required(p.role, "Rol");
       const existing = p.id ? find(s.users, p.id) : null;
-      if (!s.roles.some((r) => r.name === role)) fail("Rol bulunamadı.");
+      const targetRole = s.roles.find((r) => r.name === role);
+      if (!targetRole) fail("Rol bulunamadı.");
+      let managedLeagueId = null;
+      if (isLeagueRole(targetRole)) {
+        managedLeagueId = integer(
+          p.managedLeagueId ?? existing?.managedLeagueId,
+          "Yetkili lig",
+          1,
+        );
+        if (find(s.leagues, managedLeagueId, "Yetkili lig").type !== "Lig")
+          fail("Lig yöneticisine bir lig atanmalıdır; kupa atanamaz.");
+      }
+      if (
+        normalize(user.role) !== "admin" &&
+        (isLeagueRole(targetRole) ||
+          isLeagueRole(s.roles.find((r) => r.name === existing?.role)))
+      )
+        fail("Lig yöneticisi atamalarını yalnızca Admin yapabilir.", 403);
       if (
         normalize(user.role) !== "admin" &&
         (role === "Admin" ||
@@ -860,6 +986,7 @@ export function execute(s, user, op, p) {
         role,
         active: p.active !== false,
         playerId: Number(p.playerId) || 0,
+        managedLeagueId,
         updatedAt: new Date().toISOString(),
       };
       if (p.password) {
@@ -882,6 +1009,10 @@ export function execute(s, user, op, p) {
       if (normalize(user.role) !== "admin")
         fail("Rolleri yalnızca Admin yönetebilir.", 403);
       const name = required(p.name, "Rol adı");
+      if (normalize(name) === "kullanici")
+        fail(
+          "Kullanici rolü kaldırıldı. İzleyici veya lig kapsamlı yönetici rolünü kullanın.",
+        );
       if (name.length < 2) fail("Rol adı en az iki karakter olmalı.");
       if (
         s.roles.some(
@@ -893,6 +1024,13 @@ export function execute(s, user, op, p) {
       if (!codes.length && name !== "Admin") fail("En az bir yetki seçin.");
       if (codes.some((c) => !PERMISSIONS.includes(c))) fail("Geçersiz yetki.");
       const old = p.id ? find(s.roles, p.id) : null;
+      const scope = isLeagueRole({ name, scope: p.scope ?? old?.scope })
+        ? "league"
+        : "global";
+      if (old?.system && name !== old.name)
+        fail("Sistem rolünün adı değiştirilemez.");
+      if (name === "Admin" && scope !== "global")
+        fail("Admin rolü sistem genelindedir.");
       if (old?.name === "Admin" && name !== "Admin")
         fail("Admin rolünün adı değiştirilemez.");
       if (old) {
@@ -900,13 +1038,18 @@ export function execute(s, user, op, p) {
           if (u.role === old.name) u.role = name;
         });
         s.permissions = s.permissions.filter((x) => x.role !== old.name);
-        Object.assign(old, { name, description: String(p.description || "") });
+        Object.assign(old, {
+          name,
+          description: String(p.description || ""),
+          scope,
+        });
       } else
         s.roles.push({
           id: nextId(s.roles),
           name,
           description: String(p.description || ""),
           system: false,
+          scope,
         });
       for (const code of codes)
         s.permissions.push({

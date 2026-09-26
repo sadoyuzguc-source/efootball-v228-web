@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 190">
+<defs><linearGradient id="silver"><stop stop-color="#536579"/><stop offset=".2" stop-color="#dce9f4"/><stop offset=".4" stop-color="#ffffff"/><stop offset=".55" stop-color="#8196ad"/><stop offset=".8" stop-color="#ebf6ff"/><stop offset="1" stop-color="#597386"/></linearGradient><linearGradient id="gold"><stop stop-color="#b17c2b"/><stop offset=".5" stop-color="#ffe8a1"/><stop offset="1" stop-color="#aa752d"/></linearGradient><linearGradient id="base" x2="0" y2="1"><stop stop-color="#2d465c"/><stop offset="1" stop-color="#081622"/></linearGradient></defs>
+<ellipse cx="80" cy="181" rx="45" ry="7" fill="#020813" opacity=".5"/>
+<path d="M49 46L27 37Q9 37 18 66Q25 91 56 103M111 46L133 37Q151 37 142 66Q135 91 104 103" fill="none" stroke="#4d6277" stroke-width="9"/><path d="M49 44L27 35Q10 35 20 65Q29 87 57 99M111 44L133 35Q150 35 140 65Q131 87 103 99" fill="none" stroke="url(#silver)" stroke-width="6"/>
+<path d="M43 36H117L109 89Q104 110 85 117V143L101 154H59L75 143V117Q56 110 51 89Z" fill="url(#silver)" stroke="#c9dcea"/>
+<path d="M47 39H113M56 51L61 87M68 51L71 94M80 51V99M92 51L89 94M104 51L99 87" stroke="#fff" stroke-opacity=".6" fill="none"/>
+<path d="M39 34Q50 22 71 20L76 12H84L89 20Q110 22 121 34Z" fill="url(#silver)" stroke="#c9dcea"/><circle cx="80" cy="9" r="6" fill="url(#gold)"/><ellipse cx="80" cy="37" rx="39" ry="5" fill="url(#gold)"/>
+<path d="M71 116H89V123H71M71 139H89V146H71" fill="url(#gold)"/><ellipse cx="80" cy="155" rx="26" ry="5" fill="url(#silver)"/><path d="M51 159H109L117 176H43Z" fill="url(#base)" stroke="#8aa1b4"/><rect x="64" y="165" width="32" height="8" rx="1" fill="url(#gold)"/>
+</svg>

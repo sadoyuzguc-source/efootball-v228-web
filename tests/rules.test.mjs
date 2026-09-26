@@ -260,7 +260,7 @@ test("Gol/asist/kartlar oynanan maçlardan gelir", () => {
   assert.equal(r.find((x) => x.name === "Arda").asist, 1);
 });
 test("Yetki grupları VBA ile aynı; yetkisiz doğrudan işlem reddedilir", () => {
-  const viewer = { id: 2, role: "İzleyici", permissions: [] };
+  const viewer = { id: 2, role: "TestRol", permissions: [] };
   assert.equal(permitted(viewer, "LIGLER.GORUNTULE"), true);
   assert.equal(permitted(viewer, "AYARLAR.SKOR"), false);
   assert.throws(

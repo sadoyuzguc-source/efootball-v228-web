@@ -1,6 +1,9 @@
 // Ported from modLigSistemi: PuanDurumunuYukle, FiksturOlustur,
 // KupaElemeTuruOlusturYeni, KupaGrupSiralamasi and RolYetkisiVar.
 export const PERMISSIONS = [
+  "LIGLER.GORUNTULE",
+  "KUPALAR.GORUNTULE",
+  "TAKIMLAR.GORUNTULE",
   "TUMU",
   "AYARLAR.TUMU",
   "AYARLAR.LIG",
@@ -40,25 +43,107 @@ export const normalize = (s) =>
     .replace(/[\u0300-\u036f]/g, "")
     .replaceAll("ı", "i");
 export const played = (m) => normalize(m.status).startsWith("oynand");
+export const isActiveOrganization = (organization) =>
+  normalize(organization?.status).trim() === "aktif";
+export function fixtureParticipant(state, match, side) {
+  const name = match[side] || "";
+  const participant =
+    state.participants.find(
+      (p) => p.cupId === match.leagueId && p.name === name,
+    ) ||
+    state.players.find((p) => p.leagueId === match.leagueId && p.name === name);
+  const team =
+    participant?.team ||
+    state.teams.find((t) => t.leagueId === match.leagueId && t.manager === name)
+      ?.name ||
+    name;
+  return { name, team };
+}
+export const READ_PERMISSIONS = [
+  "LIGLER.GORUNTULE",
+  "KUPALAR.GORUNTULE",
+  "TAKIMLAR.GORUNTULE",
+  "KATALOG.GORUNTULE",
+  "HABERLER.GORUNTULE",
+];
+export const LEAGUE_ROLE_PERMISSIONS = [
+  "AYARLAR.OYUNCU",
+  "AYARLAR.SKOR",
+  "AYARLAR.FIKSTUR",
+  "AYARLAR.TAKIM",
+  "TAKIMLAR.DUZENLE",
+  "KATALOG.GORUNTULE",
+  "KATALOG.DUZENLE",
+  "HABERLER.GORUNTULE",
+  "HABERLER.DUZENLE",
+  "YAYIN.DUZENLE",
+];
+export function isLeagueRole(role) {
+  const name = normalize(typeof role === "string" ? role : role?.name).replace(
+    /[\s_-]/g,
+    "",
+  );
+  return (
+    role?.scope === "league" ||
+    ["ligadmini", "ligadmin", "ligyoneticisi"].includes(name)
+  );
+}
+export const isLeagueScoped = (user) =>
+  user?.scope === "league" || isLeagueRole(user?.role);
+export const isViewer = (user) =>
+  Boolean(user?.isGuest) || normalize(user?.role) === "izleyici";
+export function canManageLeague(user, leagueId) {
+  if (!user || isViewer(user)) return false;
+  return (
+    !isLeagueScoped(user) ||
+    (Number(user.managedLeagueId) > 0 &&
+      Number(leagueId) === Number(user.managedLeagueId))
+  );
+}
 export const UEFA_COMPETITIONS = {
-  champions: { name:'UEFA ŞAMPİYONLAR LİGİ', start:1, end:4, color:'#86baff', theme:'/championships/champions.svg' },
-  europa: { name:'UEFA AVRUPA LİGİ', start:5, end:8, color:'#ffad54', theme:'/championships/europa.svg' },
-  conference: { name:'UEFA KONFERANS LİGİ', start:9, end:12, color:'#70e8a1', theme:'/championships/conference.svg' },
+  champions: {
+    name: "UEFA ŞAMPİYONLAR LİGİ",
+    start: 1,
+    end: 4,
+    color: "#86baff",
+    theme: "/championships/champions.svg",
+  },
+  europa: {
+    name: "UEFA AVRUPA LİGİ",
+    start: 5,
+    end: 8,
+    color: "#ffad54",
+    theme: "/championships/europa.svg",
+  },
+  conference: {
+    name: "UEFA KONFERANS LİGİ",
+    start: 9,
+    end: 12,
+    color: "#70e8a1",
+    theme: "/championships/conference.svg",
+  },
 };
 export function cupCompetition(cup, league) {
-  if(!cup)return 'league';
-  if(UEFA_COMPETITIONS[cup.competition])return cup.competition;
-  if(normalize(cup.type).includes('dogrudan'))return 'league';
+  if (!cup) return "league";
+  if (UEFA_COMPETITIONS[cup.competition]) return cup.competition;
+  if (normalize(cup.type).includes("dogrudan")) return "league";
   // Old workbook cups stored the qualification band rather than a competition id.
-  if(Number(cup.quota)===5)return 'europa';
-  if(Number(cup.quota)===9)return 'conference';
-  const title=normalize(league?.name||'');
-  if(title.includes('konferans'))return 'conference';
-  if(title.includes('avrupa'))return 'europa';
-  return normalize(cup.type).includes('grup')?'champions':'league';
+  if (Number(cup.quota) === 5) return "europa";
+  if (Number(cup.quota) === 9) return "conference";
+  const title = normalize(league?.name || "");
+  if (title.includes("konferans")) return "conference";
+  if (title.includes("avrupa")) return "europa";
+  return normalize(cup.type).includes("grup") ? "champions" : "league";
 }
 export function permitted(user, code) {
   if (!user) return false;
+  if (isViewer(user)) return READ_PERMISSIONS.includes(code);
+  if (isLeagueScoped(user)) {
+    if (READ_PERMISSIONS.includes(code)) return true;
+    if (!Number(user.managedLeagueId)) return false;
+    if (code !== "AYARLAR" && !LEAGUE_ROLE_PERMISSIONS.includes(code))
+      return false;
+  }
   if (
     ["LIGLER.GORUNTULE", "KUPALAR.GORUNTULE", "TAKIMLAR.GORUNTULE"].includes(
       code,

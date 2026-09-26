@@ -2,6 +2,8 @@ import { DatabaseSync } from "node:sqlite";
 import fs from "node:fs";
 import path from "node:path";
 import bcrypt from "bcryptjs";
+import { migrateAccessData } from "../server/migrations.mjs";
+import { isLeagueRole, nextId } from "../shared/rules.mjs";
 const source = new DatabaseSync(path.resolve("data/efootball.sqlite"), {
   readOnly: true,
 });
@@ -9,6 +11,7 @@ const s = JSON.parse(
   source.prepare("SELECT data FROM app_state WHERE id=1").get().data,
 );
 source.close();
+migrateAccessData(s);
 // Tests always use a separate database. Production accounts and records are untouched.
 process.env.DATA_DIR = path.resolve("data/e2e");
 process.env.PORT = "3229";
@@ -19,6 +22,67 @@ const testDb = new DatabaseSync(
 testDb.exec(
   "CREATE TABLE IF NOT EXISTS app_state(id INTEGER PRIMARY KEY,data TEXT NOT NULL,revision INTEGER NOT NULL DEFAULT 1);",
 );
+for (let n = 1; n <= 4; n++) {
+  const leagueId = 95000 + n;
+  s.leagues.push({
+    id: leagueId,
+    name: `UEFA TEST LİGİ ${n}`,
+    season: "UEFA TEST",
+    type: "Lig",
+    status: n <= 2 ? "Aktif" : "Pasif",
+    format: "Tek Devre",
+  });
+  for (let rank = 12; rank >= 1; rank--)
+    s.players.push({
+      id: leagueId * 100 + rank,
+      leagueId,
+      name: `UEFA L${n} OYUNCU ${rank}`,
+      team: `UEFA L${n} TAKIM ${rank}`,
+      active: true,
+    });
+  let matchId = nextId(s.matches);
+  for (let a = 1; a <= 12; a++)
+    for (let b = a + 1; b <= 12; b++)
+      s.matches.push({
+        id: matchId++,
+        leagueId,
+        home: `UEFA L${n} OYUNCU ${a}`,
+        away: `UEFA L${n} OYUNCU ${b}`,
+        homeGoals: 1,
+        awayGoals: 0,
+        status: "Oynandı",
+        stage: "LIG",
+        date: "2026-01-01",
+      });
+}
+const leagueRole = s.roles.find(isLeagueRole);
+for (const [leagueId, rank] of [
+  [95001, 1],
+  [95001, 2],
+  [95002, 1],
+]) {
+  const player = s.players.find(
+    (p) => p.leagueId === leagueId && p.name.endsWith(`OYUNCU ${rank}`),
+  );
+  s.teams.push({
+    id: nextId(s.teams),
+    leagueId,
+    name: player.team,
+    manager: player.name,
+    managerId: player.id,
+    budget: 0,
+    logo: "",
+  });
+}
+s.users.push({
+  id: 90003,
+  username: "web-test-lig-admin",
+  passwordHash: bcrypt.hashSync("Test-228-Only", 4),
+  role: leagueRole.name,
+  active: true,
+  firstLogin: false,
+  managedLeagueId: 95001,
+});
 s.users.push({
   id: 90001,
   username: "web-test-admin",

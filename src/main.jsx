@@ -16,9 +16,14 @@ import {
   CheckCircle2,
   AlertCircle,
   LoaderCircle,
+  Eye,
 } from "lucide-react";
 import { AppContext, api, Modal, Form, Field } from "./ui";
-import { permitted } from "../shared/rules.mjs";
+import {
+  permitted,
+  canManageLeague as leagueAccess,
+  isLeagueScoped,
+} from "../shared/rules.mjs";
 import {
   Dashboard,
   Leagues,
@@ -84,7 +89,7 @@ function Login({ onLogin, imported }) {
               autoComplete="username"
               required
               autoFocus
-              placeholder="Excel kullanıcı adınız"
+              placeholder="Kullanıcı adınız"
             />
           </Field>
           <Field label="ŞİFRE">
@@ -106,9 +111,31 @@ function Login({ onLogin, imported }) {
             →
           </button>
         </form>
+        <button
+          className="guest-entry"
+          disabled={busy || !imported}
+          onClick={async () => {
+            setBusy(true);
+            setError("");
+            try {
+              const result = await api("/api/guest", { method: "POST" });
+              await onLogin(result.user);
+            } catch (e) {
+              setError(e.message);
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          <Eye size={19} />
+          İZLEYİCİ OLARAK DEVAM ET
+        </button>
+        <p className="guest-entry-note">
+          Üye olmadan ligleri, takımları ve sonuçları görüntüleyin.
+        </p>
         <small>
           {imported
-            ? "Excel dosyanızdaki kullanıcı adı ve şifrenizle giriş yapabilirsiniz."
+            ? "Kullanıcı adı ve şifrenizle giriş yapabilirsiniz."
             : "Önce terminalde npm run import komutunu çalıştırın."}
         </small>
       </div>
@@ -316,7 +343,18 @@ function App() {
     allowed = !routePermission[route] || can(routePermission[route]);
   return (
     <AppContext.Provider
-      value={{ data, user, can, act, refresh, navigate, notify, toasts }}
+      value={{
+        data,
+        user,
+        can,
+        act,
+        refresh,
+        navigate,
+        notify,
+        toasts,
+        leagueScoped: isLeagueScoped(user),
+        canManageLeague: (id) => leagueAccess(user, id),
+      }}
     >
       <div className="app-shell">
         <button
@@ -381,14 +419,16 @@ function App() {
               <strong>{user.username}</strong>
               <small>{user.role}</small>
             </div>
-            <button
-              className="icon-button"
-              title="Şifre değiştir"
-              aria-label="Şifre değiştir"
-              onClick={() => setPassword(true)}
-            >
-              <KeyRound size={16} />
-            </button>
+            {!user.isGuest && (
+              <button
+                className="icon-button"
+                title="Şifre değiştir"
+                aria-label="Şifre değiştir"
+                onClick={() => setPassword(true)}
+              >
+                <KeyRound size={16} />
+              </button>
+            )}
           </div>
           <button
             className="danger logout"
@@ -405,7 +445,7 @@ function App() {
             <span className="logout-icon" aria-hidden="true">
               <LogOut size={19} strokeWidth={1.8} />
             </span>
-            <span>ÇIKIŞ</span>
+            <span>{user.isGuest ? "ÜYE GİRİŞİ" : "ÇIKIŞ"}</span>
           </button>
         </aside>
         <main>
